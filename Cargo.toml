@@ -1,7 +1,7 @@
 [package]
 name = "zephyr-proof"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 authors = ["Kunal Singh Dadhwal <kunalsinghdadhwal@gmail.com>"]
 description = "Modular Halo2-based ZK circuits for selective EVM opcode verification. A building block for real-time zkEVM proving."
 license = "MIT"
@@ -14,6 +14,10 @@ readme = "README.md"
 name = "zephyr_proof"
 path = "src/lib.rs"
 crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "zkevm-prover"
+path = "src/main.rs"
 
 [[bin]]
 name = "verifier-cli"
@@ -54,19 +58,31 @@ alloy-primitives = "1.4.1"
 alloy-provider = "1.0.41"
 alloy-sol-macro = "1.4.1"
 base64 = "0.22.1"
-clap = { version = "4.5.50", features = ["derive"], optional = true }
+clap = { version = "4.5.50", features = ["derive"] }
+ethers = { version = "2.0.14", features = ["abigen", "ws"] }
 halo2_gadgets = "0.3.1"
 halo2_proofs = "0.3.1"
 halo2curves = "0.9.0"
 rayon = "1.11.0"
 revm-primitives = { version = "21.0.1", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.47.0", features = ["full"] }
 
 [features]
-clap = ["dep:clap"]
+cli = ["clap"]
+bench = []
 
 [dev-dependencies]
+anyhow = "1.0"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 proptest = "1.8.0"
 proptest-derive = "0.6.0"
-tokio = { version = "1.47.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[[bench]]
+name = "bench_proving"
+harness = false
 
