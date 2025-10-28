@@ -374,6 +374,7 @@ mod tests {
         assert_eq!(trace.opcodes.len(), 3);
         assert_eq!(trace.opcodes[2], 0x01); // ADD
         assert_eq!(trace.stack_states[2][0], 3); // Result: 1 + 2 = 3
+        assert!(trace.bytecode.is_some());
     }
 
     #[test]
@@ -385,13 +386,65 @@ mod tests {
     }
 
     #[test]
+    fn test_trace_validation() {
+        let mut trace = EvmTrace::mock_add();
+        assert!(trace.validate().is_ok());
+
+        // Test empty trace
+        trace.opcodes.clear();
+        assert!(trace.validate().is_err());
+    }
+
+    #[test]
     fn test_parse_trace_json() {
         let json = r#"{
             "opcodes": [96, 96, 1],
             "stack_states": [[1, 0, 0], [2, 1, 0], [3, 0, 0]],
             "pcs": [0, 2, 4],
-            "gas_values": [1000, 997, 994]
+            "gas_values": [1000, 997, 994],
+            "memory_ops": null,
+            "storage_ops": null,
+            "tx_hash": null,
+            "block_number": null,
+            "bytecode": null
         }"#;
+
+        let trace = parse_trace_json(json).unwrap();
+        assert_eq!(trace.opcodes.len(), 3);
+    }
+
+    #[test]
+    fn test_parse_evm_data() {
+        let trace = EvmTrace::mock_add();
+        let witness = parse_evm_data(&trace).unwrap();
+
+        assert_eq!(witness.opcode_cells.len(), 3);
+        assert_eq!(witness.gas_cells.len(), 3);
+        assert_eq!(witness.public_inputs.len(), 4); // 4 u64s from SHA256
+    }
+
+    #[test]
+    fn test_extract_opcodes_from_bytecode() {
+        // PUSH1 0x01, PUSH1 0x02, ADD
+        let bytecode = vec![0x60, 0x01, 0x60, 0x02, 0x01];
+        let opcodes = extract_opcodes_from_bytecode(&bytecode);
+
+        // Should extract PUSH1, PUSH1, ADD (3 opcodes)
+        assert_eq!(opcodes.len(), 3);
+        assert_eq!(opcodes[0], 0x60); // PUSH1
+        assert_eq!(opcodes[1], 0x60); // PUSH1
+        assert_eq!(opcodes[2], 0x01); // ADD
+    }
+
+    #[test]
+    fn test_compute_trace_commitment() {
+        let trace = EvmTrace::mock_add();
+        let commitment = compute_trace_commitment(&trace);
+
+        assert_eq!(commitment.len(), 4);
+        // Commitment should be deterministic
+        let commitment2 = compute_trace_commitment(&trace);
+        assert_eq!(commitment, commitment2);
 
         let result = parse_trace_json(json);
         assert!(result.is_ok());

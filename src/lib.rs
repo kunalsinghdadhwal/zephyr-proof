@@ -139,12 +139,46 @@ pub async fn prove_transaction(
     rpc_url: &str,
     config: &ProverConfig,
 ) -> ProverResult<ProofOutput> {
-    // Fetch trace via Ethers
+    // Fetch trace via Alloy
     let trace = utils::evm_parser::fetch_trace_from_network(tx_hash, rpc_url).await?;
+
+    // Validate trace
+    trace.validate()?;
 
     // Generate proof
     let trace_json = serde_json::to_string(&trace)?;
     generate_proof(&trace_json, config).await
+}
+
+/// Fetch a real EVM trace from Ethereum network
+///
+/// # Arguments
+///
+/// * `tx_hash` - Transaction hash to fetch
+/// * `rpc_url` - Ethereum RPC endpoint URL
+///
+/// # Returns
+///
+/// Real `EvmTrace` from network simulation
+///
+/// # Example
+///
+/// ```no_run
+/// # use zephyr_proof::fetch_real_trace;
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let trace = fetch_real_trace(
+///     "0x1234...",
+///     "http://localhost:8545"
+/// ).await?;
+/// println!("Fetched {} opcodes", trace.opcodes.len());
+/// # Ok(())
+/// # }
+/// ```
+pub async fn fetch_real_trace(
+    tx_hash: &str,
+    rpc_url: &str,
+) -> ProverResult<utils::evm_parser::EvmTrace> {
+    utils::evm_parser::fetch_trace_from_network(tx_hash, rpc_url).await
 }
 
 /// Create a new prover with default configuration

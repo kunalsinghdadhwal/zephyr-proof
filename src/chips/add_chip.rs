@@ -102,6 +102,7 @@ impl<F: Field> AddChip<F> {
     }
 
     /// Assign and constrain addition: c = a + b
+    /// Real ex: Pop two stack values, push sum (mod 2^256 in field)
     pub fn add(
         &self,
         mut layouter: impl Layouter<F>,
@@ -117,6 +118,53 @@ impl<F: Field> AddChip<F> {
                 region.assign_advice(|| "b", self.config.b, 0, || Value::known(b))?;
 
                 let c = a + b;
+                region.assign_advice(|| "c", self.config.c, 0, || Value::known(c))
+            },
+        )
+    }
+
+    /// Assign and constrain addition with assigned cells (for circuit composition)
+    pub fn add_assigned(
+        &self,
+        mut layouter: impl Layouter<F>,
+        a: &AssignedCell<F, F>,
+        b: &AssignedCell<F, F>,
+    ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "add_assigned",
+            |mut region| {
+                self.config.s_add.enable(&mut region, 0)?;
+
+                let a_val = a.value().copied();
+                let b_val = b.value().copied();
+
+                region.assign_advice(|| "a", self.config.a, 0, || a_val)?;
+                region.assign_advice(|| "b", self.config.b, 0, || b_val)?;
+
+                let c_val = a_val + b_val;
+                region.assign_advice(|| "c", self.config.c, 0, || c_val)
+            },
+        )
+    }
+
+    /// Assign and constrain subtraction: c = a - b
+    /// Real ex: SUB opcode implementation
+    pub fn sub(
+        &self,
+        mut layouter: impl Layouter<F>,
+        a: F,
+        b: F,
+    ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "sub",
+            |mut region| {
+                // Reuse add gate with negated b: a + (-b) = a - b
+                self.config.s_add.enable(&mut region, 0)?;
+
+                region.assign_advice(|| "a", self.config.a, 0, || Value::known(a))?;
+                region.assign_advice(|| "b", self.config.b, 0, || Value::known(-b))?;
+
+                let c = a - b;
                 region.assign_advice(|| "c", self.config.c, 0, || Value::known(c))
             },
         )

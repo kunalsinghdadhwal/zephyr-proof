@@ -66,7 +66,6 @@ halo2_gadgets = "0.3.1"
 halo2_proofs = "0.3.1"
 halo2curves = "0.9.0"
 rayon = "1.11.0"
-revm = { version = "21.0.1", features = ["serde"] }
 revm-primitives = { version = "21.0.1", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -74,18 +73,20 @@ thiserror = "1.0"
 tokio = { version = "1.47.0", features = ["full"] }
 hex = "0.4"
 sha2 = "0.10"
+revm = { version = "30.2.0", features = ["serde"] }
 
-[features]
-cli = ["clap"]
-bench = []
 
 [dev-dependencies]
 anyhow = "1.0"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 proptest = "1.8.0"
 proptest-derive = "0.6.0"
-tracing = "0.1"
-tracing-subscriber = "0.3"
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
 
 [[bench]]
 name = "bench_proving"
