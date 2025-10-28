@@ -25,6 +25,18 @@ pub enum ProverError {
     #[error("Network error: {0}")]
     NetworkError(String),
 
+    /// Real trace fetching/parsing error
+    #[error("Real trace error: {0}")]
+    RealTraceError(String),
+
+    /// Transaction not found or invalid
+    #[error("Invalid transaction: {0}")]
+    InvalidTransaction(String),
+
+    /// RPC connection failed
+    #[error("RPC connection failed: {0}")]
+    RpcConnectionError(String),
+
     /// Invalid input or configuration
     #[error("Invalid input: {0}")]
     InvalidInput(String),
