@@ -175,10 +175,25 @@ impl<F: Field> EvmChip<F> {
                     0,
                     || Value::known(F::from(opcode as u64)),
                 )?;
-                region.assign_advice(|| "stack_0", self.config.stack_0, 0, || Value::known(stack_top))?;
-                region.assign_advice(|| "stack_1", self.config.stack_1, 0, || Value::known(stack_1))?;
+                region.assign_advice(
+                    || "stack_0",
+                    self.config.stack_0,
+                    0,
+                    || Value::known(stack_top),
+                )?;
+                region.assign_advice(
+                    || "stack_1",
+                    self.config.stack_1,
+                    0,
+                    || Value::known(stack_1),
+                )?;
                 region.assign_advice(|| "pc", self.config.pc, 0, || Value::known(F::from(pc)))?;
-                region.assign_advice(|| "gas", self.config.gas, 0, || Value::known(F::from(gas)))?;
+                region.assign_advice(
+                    || "gas",
+                    self.config.gas,
+                    0,
+                    || Value::known(F::from(gas)),
+                )?;
 
                 // Compute next state (simplified - real EVM has complex state transitions)
                 let result = match OpCode::from_u8(opcode) {
@@ -188,13 +203,33 @@ impl<F: Field> EvmChip<F> {
                     _ => stack_top, // PUSH1, STOP don't modify stack top in this model
                 };
 
-                region.assign_advice(|| "stack_2", self.config.stack_2, 0, || Value::known(result))?;
+                region.assign_advice(
+                    || "stack_2",
+                    self.config.stack_2,
+                    0,
+                    || Value::known(result),
+                )?;
 
                 // Next state (would be in next row in real impl)
-                region.assign_advice(|| "pc_next", self.config.pc, 1, || Value::known(F::from(pc + 1)))?;
-                region.assign_advice(|| "gas_next", self.config.gas, 1, || Value::known(F::from(gas - 3)))?;
+                region.assign_advice(
+                    || "pc_next",
+                    self.config.pc,
+                    1,
+                    || Value::known(F::from(pc + 1)),
+                )?;
+                region.assign_advice(
+                    || "gas_next",
+                    self.config.gas,
+                    1,
+                    || Value::known(F::from(gas - 3)),
+                )?;
 
-                Ok(region.assign_advice(|| "result", self.config.stack_2, 0, || Value::known(result))?)
+                Ok(region.assign_advice(
+                    || "result",
+                    self.config.stack_2,
+                    0,
+                    || Value::known(result),
+                )?)
             },
         )
     }

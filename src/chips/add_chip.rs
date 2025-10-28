@@ -92,7 +92,13 @@ impl<F: Field> AddChip<F> {
             vec![s * (a * b - c)]
         });
 
-        AddChipConfig { a, b, c, s_add, s_mul }
+        AddChipConfig {
+            a,
+            b,
+            c,
+            s_add,
+            s_mul,
+        }
     }
 
     /// Assign and constrain addition: c = a + b
@@ -109,7 +115,7 @@ impl<F: Field> AddChip<F> {
 
                 region.assign_advice(|| "a", self.config.a, 0, || Value::known(a))?;
                 region.assign_advice(|| "b", self.config.b, 0, || Value::known(b))?;
-                
+
                 let c = a + b;
                 region.assign_advice(|| "c", self.config.c, 0, || Value::known(c))
             },
@@ -130,7 +136,7 @@ impl<F: Field> AddChip<F> {
 
                 region.assign_advice(|| "a", self.config.a, 0, || Value::known(a))?;
                 region.assign_advice(|| "b", self.config.b, 0, || Value::known(b))?;
-                
+
                 let c = a * b;
                 region.assign_advice(|| "c", self.config.c, 0, || Value::known(c))
             },
@@ -141,9 +147,9 @@ impl<F: Field> AddChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_proofs::{dev::MockProver, pasta::Fp};
     use halo2_proofs::circuit::SimpleFloorPlanner;
     use halo2_proofs::plonk::Circuit;
+    use halo2_proofs::{dev::MockProver, pasta::Fp};
 
     #[derive(Default)]
     struct TestCircuit {
@@ -166,7 +172,11 @@ mod tests {
             AddChip::configure(meta, a, b, c)
         }
 
-        fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<Fp>) -> Result<(), Error> {
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            mut layouter: impl Layouter<Fp>,
+        ) -> Result<(), Error> {
             let chip = AddChip::construct(config);
             chip.add(layouter.namespace(|| "add"), self.a, self.b)?;
             Ok(())

@@ -108,12 +108,7 @@ impl<F: Field> Circuit<F> for StorageCircuit<F> {
                 |mut region| {
                     config.s_storage.enable(&mut region, 0)?;
 
-                    region.assign_advice(
-                        || "key",
-                        config.key,
-                        0,
-                        || Value::known(update.key),
-                    )?;
+                    region.assign_advice(|| "key", config.key, 0, || Value::known(update.key))?;
                     region.assign_advice(
                         || "old_value",
                         config.old_value,

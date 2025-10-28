@@ -45,7 +45,7 @@ debug = false
 split-debuginfo = "unpacked"
 overflow-checks = false
 lto = "fat"
-panic = "abort" 
+panic = "abort"
 incremental = false
 codegen-units = 1
 
@@ -85,4 +85,3 @@ tracing-subscriber = "0.3"
 [[bench]]
 name = "bench_proving"
 harness = false
-

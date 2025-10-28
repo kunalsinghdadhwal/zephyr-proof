@@ -118,17 +118,19 @@ impl<F: Field> Circuit<F> for EvmCircuit<F> {
 
         // Expose trace commitment as public input
         layouter.constrain_instance(
-            layouter.assign_region(
-                || "public_input",
-                |mut region| {
-                    region.assign_advice(
-                        || "trace_commitment",
-                        config.evm_config.opcode, // Reuse a column
-                        0,
-                        || Value::known(self.trace_commitment),
-                    )
-                },
-            )?.cell(),
+            layouter
+                .assign_region(
+                    || "public_input",
+                    |mut region| {
+                        region.assign_advice(
+                            || "trace_commitment",
+                            config.evm_config.opcode, // Reuse a column
+                            0,
+                            || Value::known(self.trace_commitment),
+                        )
+                    },
+                )?
+                .cell(),
             config.public_input,
             0,
         )?;
@@ -157,7 +159,7 @@ mod tests {
     #[test]
     fn test_evm_circuit_mock_add() {
         let circuit = EvmCircuit::<Fp>::mock_add();
-        
+
         // Public inputs: trace commitment
         let public_inputs = vec![circuit.trace_commitment];
 

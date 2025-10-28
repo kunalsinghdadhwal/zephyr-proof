@@ -100,7 +100,7 @@ pub type ProverResult<T> = Result<T, ProverError>;
 pub async fn generate_proof(trace_json: &str, config: &ProverConfig) -> ProverResult<ProofOutput> {
     // Parse trace
     let trace = utils::evm_parser::parse_trace_json(trace_json)?;
-    
+
     // Generate proof using parallel prover
     if config.parallel {
         prover::parallel_prover::generate_proof_parallel(&trace, config).await
@@ -141,7 +141,7 @@ pub async fn prove_transaction(
 ) -> ProverResult<ProofOutput> {
     // Fetch trace via Ethers
     let trace = utils::evm_parser::fetch_trace_from_network(tx_hash, rpc_url).await?;
-    
+
     // Generate proof
     let trace_json = serde_json::to_string(&trace)?;
     generate_proof(&trace_json, config).await
