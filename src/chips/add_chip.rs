@@ -195,49 +195,76 @@ impl<F: Field> AddChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_proofs::circuit::SimpleFloorPlanner;
-    use halo2_proofs::plonk::Circuit;
     use halo2_proofs::{dev::MockProver, pasta::Fp};
 
-    #[derive(Default)]
-    struct TestCircuit {
-        a: Fp,
-        b: Fp,
-    }
+    #[test]
+    fn test_add_chip_basic() {
+        let a = Fp::from(5);
+        let b = Fp::from(7);
+        let c = a + b;
 
-    impl Circuit<Fp> for TestCircuit {
-        type Config = AddChipConfig;
-        type FloorPlanner = SimpleFloorPlanner;
-
-        fn without_witnesses(&self) -> Self {
-            Self::default()
-        }
-
-        fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
-            let a = meta.advice_column();
-            let b = meta.advice_column();
-            let c = meta.advice_column();
-            AddChip::configure(meta, a, b, c)
-        }
-
-        fn synthesize(
-            &self,
-            config: Self::Config,
-            mut layouter: impl Layouter<Fp>,
-        ) -> Result<(), Error> {
-            let chip = AddChip::construct(config);
-            chip.add(layouter.namespace(|| "add"), self.a, self.b)?;
-            Ok(())
-        }
+        let circuit = AddCircuit { a, b, c };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
-    fn test_add_chip() {
-        let a = Fp::from(5);
-        let b = Fp::from(3);
-        let circuit = TestCircuit { a, b };
+    fn test_add_chip_zero() {
+        let a = Fp::from(0);
+        let b = Fp::from(0);
+        let c = Fp::from(0);
 
+        let circuit = AddCircuit { a, b, c };
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
-        prover.assert_satisfied();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_add_chip_large_values() {
+        let a = Fp::from(1000000);
+        let b = Fp::from(2000000);
+        let c = a + b;
+
+        let circuit = AddCircuit { a, b, c };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_add_chip_invalid_sum() {
+        let a = Fp::from(5);
+        let b = Fp::from(7);
+        let c = Fp::from(100); // Wrong sum
+
+        let circuit = AddCircuit { a, b, c };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert!(prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_add_chip_identity() {
+        let a = Fp::from(42);
+        let b = Fp::from(0);
+        let c = a + b;
+
+        let circuit = AddCircuit { a, b, c };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_add_chip_commutative() {
+        let a = Fp::from(123);
+        let b = Fp::from(456);
+        let c = a + b;
+
+        let circuit1 = AddCircuit { a, b, c };
+        let circuit2 = AddCircuit { a: b, b: a, c };
+
+        let prover1 = MockProver::run(4, &circuit1, vec![]).unwrap();
+        let prover2 = MockProver::run(4, &circuit2, vec![]).unwrap();
+
+        assert_eq!(prover1.verify(), Ok(()));
+        assert_eq!(prover2.verify(), Ok(()));
     }
 }

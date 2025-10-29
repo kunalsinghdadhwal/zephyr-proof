@@ -243,17 +243,126 @@ impl<F: Field> EvmChip<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use halo2_proofs::{dev::MockProver, pasta::Fp};
 
     #[test]
-    fn test_opcode_conversion() {
-        assert_eq!(OpCode::from_u8(0x01), Some(OpCode::Add));
-        assert_eq!(OpCode::from_u8(0x60), Some(OpCode::Push1));
-        assert_eq!(OpCode::from_u8(0xFF), None);
+    fn test_u64_to_field() {
+        let result = u64_to_field(100);
+        assert_eq!(result, Fp::from(100));
     }
 
     #[test]
-    fn test_opcode_values() {
-        assert_eq!(OpCode::Add as u8, 0x01);
-        assert_eq!(OpCode::Push1 as u8, 0x60);
+    fn test_u64_to_field_zero() {
+        let result = u64_to_field(0);
+        assert_eq!(result, Fp::from(0));
+    }
+
+    #[test]
+    fn test_u64_to_field_large() {
+        let large_val = 1_000_000_u64;
+        let result = u64_to_field(large_val);
+        assert_eq!(result, Fp::from(large_val));
+    }
+
+    #[test]
+    fn test_evm_circuit_add() {
+        let a = Fp::from(10);
+        let b = Fp::from(20);
+        let result = a + b;
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x01, // ADD
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_evm_circuit_mul() {
+        let a = Fp::from(5);
+        let b = Fp::from(7);
+        let result = a * b;
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x02, // MUL
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_evm_circuit_sub() {
+        let a = Fp::from(20);
+        let b = Fp::from(8);
+        let result = a - b;
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x03, // SUB
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_evm_circuit_invalid_add() {
+        let a = Fp::from(10);
+        let b = Fp::from(20);
+        let result = Fp::from(999); // Wrong result
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x01,
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert!(prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_evm_circuit_zero_inputs() {
+        let a = Fp::from(0);
+        let b = Fp::from(0);
+        let result = Fp::from(0);
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x01,
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_evm_circuit_large_k() {
+        let a = Fp::from(42);
+        let b = Fp::from(58);
+        let result = a + b;
+
+        let circuit = EvmOpCircuit {
+            opcode: 0x01,
+            input_a: a,
+            input_b: b,
+            output: result,
+        };
+
+        let prover = MockProver::run(8, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
     }
 }

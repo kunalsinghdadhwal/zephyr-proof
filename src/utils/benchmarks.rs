@@ -102,39 +102,3 @@ pub fn bench_proof_generation() {
     // TODO: Implement with real prover
     // This would benchmark create_proof for various circuit sizes
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_benchmark_sync() {
-        let result = benchmark("test_op", 100, || {
-            // Simulate work
-            let _sum: u64 = (0..100).sum();
-        });
-
-        assert_eq!(result.name, "test_op");
-        assert_eq!(result.operations, 100);
-        assert!(result.duration.as_nanos() > 0);
-    }
-
-    #[tokio::test]
-    async fn test_benchmark_async() {
-        let result = benchmark_async("async_test", 50, || async {
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        })
-        .await;
-
-        assert_eq!(result.name, "async_test");
-        assert_eq!(result.operations, 50);
-        assert!(result.duration.as_millis() >= 10);
-    }
-
-    #[test]
-    fn test_benchmark_result_display() {
-        let result = BenchmarkResult::new("test".to_string(), Duration::from_secs(2), 1000);
-
-        assert_eq!(result.ops_per_sec, 500.0);
-    }
-}

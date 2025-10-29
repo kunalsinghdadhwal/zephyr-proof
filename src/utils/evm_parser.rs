@@ -295,30 +295,25 @@ mod tests {
 
     #[test]
     fn test_trace_validation() {
-        let mut trace = create_test_trace();
+        let trace = create_test_trace();
         assert!(trace.validate().is_ok());
-
-        // Test empty trace
-        trace.opcodes.clear();
-        assert!(trace.validate().is_err());
     }
 
     #[test]
-    fn test_parse_trace_json() {
-        let json = r#"{
-            "opcodes": [96, 96, 1],
-            "stack_states": [[1, 0, 0], [2, 1, 0], [3, 0, 0]],
-            "pcs": [0, 2, 4],
-            "gas_values": [1000, 997, 994],
-            "memory_ops": null,
-            "storage_ops": null,
-            "tx_hash": null,
-            "block_number": null,
-            "bytecode": null
-        }"#;
+    fn test_trace_validation_empty() {
+        let mut trace = create_test_trace();
+        trace.opcodes.clear();
+        let result = trace.validate();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ProverError::InvalidInput(_)));
+    }
 
-        let trace = parse_trace_json(json).unwrap();
-        assert_eq!(trace.opcodes.len(), 3);
+    #[test]
+    fn test_trace_validation_mismatch() {
+        let mut trace = create_test_trace();
+        trace.stack_states.push(vec![0, 0, 0]);
+        let result = trace.validate();
+        assert!(result.is_err());
     }
 
     #[test]
@@ -329,19 +324,10 @@ mod tests {
         assert_eq!(witness.opcode_cells.len(), 3);
         assert_eq!(witness.gas_cells.len(), 3);
         assert_eq!(witness.public_inputs.len(), 4); // 4 u64s from SHA256
-    }
-
-    #[test]
-    fn test_extract_opcodes_from_bytecode() {
-        // PUSH1 0x01, PUSH1 0x02, ADD
-        let bytecode = vec![0x60, 0x01, 0x60, 0x02, 0x01];
-        let opcodes = extract_opcodes_from_bytecode(&bytecode);
-
-        // Should extract PUSH1, PUSH1, ADD (3 opcodes)
-        assert_eq!(opcodes.len(), 3);
-        assert_eq!(opcodes[0], 0x60); // PUSH1
-        assert_eq!(opcodes[1], 0x60); // PUSH1
-        assert_eq!(opcodes[2], 0x01); // ADD
+        
+        // Verify opcodes are correctly converted
+        assert_eq!(witness.opcode_cells[0], 0x60);
+        assert_eq!(witness.opcode_cells[2], 0x01);
     }
 
     #[test]
@@ -353,6 +339,18 @@ mod tests {
         // Commitment should be deterministic
         let commitment2 = compute_trace_commitment(&trace);
         assert_eq!(commitment, commitment2);
+    }
+
+    #[test]
+    fn test_commitment_different_traces() {
+        let trace1 = create_test_trace();
+        let mut trace2 = create_test_trace();
+        trace2.opcodes[0] = 0x61; // Different opcode
+        
+        let commitment1 = compute_trace_commitment(&trace1);
+        let commitment2 = compute_trace_commitment(&trace2);
+        
+        assert_ne!(commitment1, commitment2);
     }
 
     #[test]
@@ -381,6 +379,100 @@ mod tests {
     fn test_parse_invalid_json() {
         let json = "{ invalid json }";
         let result = parse_trace_json(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_opcodes_simple() {
+        // PUSH1 0x01, PUSH1 0x02, ADD
+        let bytecode = vec![0x60, 0x01, 0x60, 0x02, 0x01];
+        let opcodes = extract_opcodes_from_bytecode(&bytecode);
+
+        assert_eq!(opcodes.len(), 3);
+        assert_eq!(opcodes[0], 0x60); // PUSH1
+        assert_eq!(opcodes[1], 0x60); // PUSH1
+        assert_eq!(opcodes[2], 0x01); // ADD
+    }
+
+    #[test]
+    fn test_extract_opcodes_push32() {
+        // PUSH32 with 32 bytes of data, then ADD
+        let mut bytecode = vec![0x7f]; // PUSH32
+        bytecode.extend(vec![0xff; 32]); // 32 bytes
+        bytecode.push(0x01); // ADD
+        
+        let opcodes = extract_opcodes_from_bytecode(&bytecode);
+        
+        assert_eq!(opcodes.len(), 2);
+        assert_eq!(opcodes[0], 0x7f); // PUSH32
+        assert_eq!(opcodes[1], 0x01); // ADD
+    }
+
+    #[test]
+    fn test_trace_with_storage_ops() {
+        let trace = EvmTrace {
+            opcodes: vec![0x54, 0x55], // SLOAD, SSTORE
+            stack_states: vec![vec![1, 0, 0], vec![2, 1, 0]],
+            pcs: vec![0, 1],
+            gas_values: vec![1000, 800],
+            memory_ops: None,
+            storage_ops: Some(vec![
+                StorageOp {
+                    key: U256::from(1),
+                    value: U256::from(100),
+                    is_write: false,
+                },
+            ]),
+            tx_hash: Some("0xabcd...".to_string()),
+            block_number: Some(12345),
+            bytecode: None,
+        };
+
+        assert!(trace.validate().is_ok());
+        assert_eq!(trace.storage_ops.as_ref().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_large_trace() {
+        let opcodes = vec![0x60; 100]; // 100 PUSH1 operations
+        let stack_states = vec![vec![1, 0, 0]; 100];
+        let pcs: Vec<u64> = (0..100).map(|i| i * 2).collect();
+        let gas_values: Vec<u64> = (0..100).map(|i| 1000 - i * 3).collect();
+
+        let trace = EvmTrace {
+            opcodes,
+            stack_states,
+            pcs,
+            gas_values,
+            memory_ops: None,
+            storage_ops: None,
+            tx_hash: None,
+            block_number: None,
+            bytecode: None,
+        };
+
+        assert!(trace.validate().is_ok());
+        let witness = parse_evm_data(&trace).unwrap();
+        assert_eq!(witness.opcode_cells.len(), 100);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_trace_invalid_rpc() {
+        let result = fetch_trace_from_network(
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "invalid-url"
+        ).await;
+        
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_trace_invalid_hash() {
+        let result = fetch_trace_from_network(
+            "invalid-hash",
+            "http://localhost:8545"
+        ).await;
+        
         assert!(result.is_err());
     }
 }

@@ -131,21 +131,88 @@ impl<F: Field> Circuit<F> for StorageCircuit<F> {
     }
 }
 
+// Needed for gate constraint
+use halo2_proofs::plonk::Expression;
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_proofs::pasta::Fp;
+    use halo2_proofs::{dev::MockProver, pasta::Fp};
 
     #[test]
-    fn test_storage_update_creation() {
-        let update = StorageUpdate {
-            key: Fp::from(42),
-            old_value: Fp::from(10),
-            new_value: Fp::from(20),
-        };
-        assert_eq!(update.key, Fp::from(42));
+    fn test_storage_circuit_basic() {
+        let key = Fp::from(1);
+        let old_value = Fp::from(100);
+        let new_value = Fp::from(200);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_storage_circuit_zero_values() {
+        let key = Fp::from(0);
+        let old_value = Fp::from(0);
+        let new_value = Fp::from(0);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_storage_circuit_large_values() {
+        let key = Fp::from(999999);
+        let old_value = Fp::from(888888);
+        let new_value = Fp::from(777777);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_storage_circuit_update_from_zero() {
+        let key = Fp::from(42);
+        let old_value = Fp::from(0);
+        let new_value = Fp::from(1000);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_storage_circuit_update_to_zero() {
+        let key = Fp::from(42);
+        let old_value = Fp::from(1000);
+        let new_value = Fp::from(0);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_storage_circuit_same_value() {
+        let key = Fp::from(10);
+        let old_value = Fp::from(500);
+        let new_value = Fp::from(500);
+
+        let circuit = StorageCircuit { key, old_value, new_value };
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_update_helper() {
+        let key = Fp::from(123);
+        let old_value = Fp::from(456);
+        let new_value = Fp::from(789);
+
+        let circuit = test_update(key, old_value, new_value);
+        let prover = MockProver::run(4, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
     }
 }
-
-// Needed for gate constraint
-use halo2_proofs::plonk::Expression;

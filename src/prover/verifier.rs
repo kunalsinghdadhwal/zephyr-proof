@@ -115,9 +115,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_verify_valid_proof() {
+        use sha2::{Digest, Sha256};
+        use halo2_proofs::pasta::Fp;
+
+        // Create a valid proof structure
+        let public_inputs_fp = vec![Fp::from(123u64)];
+        
+        // Generate expected hash
+        let mut hasher = Sha256::new();
+        for input in &public_inputs_fp {
+            hasher.update(format!("{:?}", input).as_bytes());
+        }
+        let hash = hasher.finalize();
+        
+        // Create proof with hash
+        let mut proof_bytes = vec![0u8; 256];
+        proof_bytes[..32].copy_from_slice(&hash);
+        
         let proof = ProofOutput {
-            proof: general_purpose::STANDARD.encode(&vec![0u8; 128]),
-            public_inputs: vec!["0x3".to_string()],
+            proof: general_purpose::STANDARD.encode(&proof_bytes),
+            public_inputs: vec!["0x7b".to_string()], // 123 in hex
             metadata: TraceInfo {
                 opcode_count: 3,
                 gas_used: 9,
@@ -153,9 +170,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_verify_proof_too_short() {
+        let proof = ProofOutput {
+            proof: general_purpose::STANDARD.encode(&vec![0u8; 32]), // Too short
+            public_inputs: vec!["0x3".to_string()],
+            metadata: TraceInfo {
+                opcode_count: 3,
+                gas_used: 9,
+                tx_hash: None,
+                block_number: None,
+            },
+            vk_hash: "vk_17".to_string(),
+        };
+
+        let config = ProverConfig::default();
+        let result = verify(&proof, &config).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
     async fn test_batch_verify() {
+        use sha2::{Digest, Sha256};
+        use halo2_proofs::pasta::Fp;
+
+        let public_inputs_fp = vec![Fp::from(3u64)];
+        let mut hasher = Sha256::new();
+        for input in &public_inputs_fp {
+            hasher.update(format!("{:?}", input).as_bytes());
+        }
+        let hash = hasher.finalize();
+        
+        let mut proof_bytes = vec![0u8; 256];
+        proof_bytes[..32].copy_from_slice(&hash);
+
         let proof1 = ProofOutput {
-            proof: general_purpose::STANDARD.encode(&vec![0u8; 128]),
+            proof: general_purpose::STANDARD.encode(&proof_bytes),
             public_inputs: vec!["0x3".to_string()],
             metadata: TraceInfo {
                 opcode_count: 3,
@@ -172,5 +221,60 @@ mod tests {
         let results = batch_verify(vec![&proof1, &proof2], &config).await;
         assert!(results.is_ok());
         assert_eq!(results.unwrap(), vec![true, true]);
+    }
+
+    #[tokio::test]
+    async fn test_batch_verify_sequential() {
+        use sha2::{Digest, Sha256};
+        use halo2_proofs::pasta::Fp;
+
+        let public_inputs_fp = vec![Fp::from(5u64)];
+        let mut hasher = Sha256::new();
+        for input in &public_inputs_fp {
+            hasher.update(format!("{:?}", input).as_bytes());
+        }
+        let hash = hasher.finalize();
+        
+        let mut proof_bytes = vec![0u8; 256];
+        proof_bytes[..32].copy_from_slice(&hash);
+
+        let proof = ProofOutput {
+            proof: general_purpose::STANDARD.encode(&proof_bytes),
+            public_inputs: vec!["0x5".to_string()],
+            metadata: TraceInfo {
+                opcode_count: 2,
+                gas_used: 6,
+                tx_hash: None,
+                block_number: None,
+            },
+            vk_hash: "vk_17".to_string(),
+        };
+
+        let config = ProverConfig {
+            parallel: false,
+            ..Default::default()
+        };
+        
+        let results = batch_verify(vec![&proof], &config).await;
+        assert!(results.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_verify_invalid_base64() {
+        let proof = ProofOutput {
+            proof: "not-valid-base64!@#$".to_string(),
+            public_inputs: vec!["0x3".to_string()],
+            metadata: TraceInfo {
+                opcode_count: 3,
+                gas_used: 9,
+                tx_hash: None,
+                block_number: None,
+            },
+            vk_hash: "vk_17".to_string(),
+        };
+
+        let config = ProverConfig::default();
+        let result = verify(&proof, &config).await;
+        assert!(result.is_err());
     }
 }

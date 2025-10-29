@@ -129,19 +129,19 @@ mod tests {
         let steps = vec![
             ExecutionStep {
                 opcode: 0x60, // PUSH1
-                stack: [Fp::from(1), Fp::ZERO, Fp::ZERO],
+                stack: [Fp::from(1u64), Fp::ZERO, Fp::ZERO],
                 pc: 0,
                 gas: 1000,
             },
             ExecutionStep {
                 opcode: 0x60, // PUSH1
-                stack: [Fp::from(2), Fp::from(1), Fp::ZERO],
+                stack: [Fp::from(2u64), Fp::from(1u64), Fp::ZERO],
                 pc: 2,
                 gas: 997,
             },
             ExecutionStep {
                 opcode: 0x01, // ADD
-                stack: [Fp::from(3), Fp::ZERO, Fp::ZERO],
+                stack: [Fp::from(3u64), Fp::ZERO, Fp::ZERO],
                 pc: 4,
                 gas: 994,
             },
@@ -166,11 +166,76 @@ mod tests {
     fn test_execution_step_creation() {
         let step = ExecutionStep {
             opcode: 0x01,
-            stack: [Fp::from(5), Fp::from(3), Fp::ZERO],
+            stack: [Fp::from(5u64), Fp::from(3u64), Fp::ZERO],
             pc: 0,
             gas: 100,
         };
         assert_eq!(step.opcode, 0x01);
         assert_eq!(step.gas, 100);
+    }
+
+    #[test]
+    fn test_evm_circuit_empty() {
+        let circuit = EvmCircuit::<Fp>::new(vec![], Fp::ZERO);
+        assert_eq!(circuit.steps.len(), 0);
+    }
+
+    #[test]
+    fn test_evm_circuit_single_step() {
+        let steps = vec![
+            ExecutionStep {
+                opcode: 0x60,
+                stack: [Fp::from(1u64), Fp::ZERO, Fp::ZERO],
+                pc: 0,
+                gas: 1000,
+            },
+        ];
+        let circuit = EvmCircuit::new(steps, Fp::from(111u64));
+        
+        let k = 10;
+        let public_inputs = vec![circuit.trace_commitment];
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
+        prover.assert_satisfied();
+    }
+
+    #[test]
+    fn test_evm_circuit_mul() {
+        let steps = vec![
+            ExecutionStep {
+                opcode: 0x60, // PUSH1
+                stack: [Fp::from(5u64), Fp::ZERO, Fp::ZERO],
+                pc: 0,
+                gas: 1000,
+            },
+            ExecutionStep {
+                opcode: 0x60, // PUSH1
+                stack: [Fp::from(3u64), Fp::from(5u64), Fp::ZERO],
+                pc: 2,
+                gas: 997,
+            },
+            ExecutionStep {
+                opcode: 0x02, // MUL
+                stack: [Fp::from(15u64), Fp::ZERO, Fp::ZERO],
+                pc: 4,
+                gas: 994,
+            },
+        ];
+        
+        let circuit = EvmCircuit::new(steps, Fp::from(54321u64));
+        let k = 10;
+        let public_inputs = vec![circuit.trace_commitment];
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
+        prover.assert_satisfied();
+    }
+
+    #[test]
+    fn test_circuit_config() {
+        use halo2_proofs::plonk::ConstraintSystem;
+        
+        let mut cs = ConstraintSystem::<Fp>::default();
+        let _config = EvmCircuit::<Fp>::configure(&mut cs);
+        
+        // Verify configuration was created
+        assert!(cs.num_advice_columns() > 0);
     }
 }

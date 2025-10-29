@@ -302,6 +302,7 @@ mod tests {
 
         let proof = result.unwrap();
         assert_eq!(proof.metadata.opcode_count, 3);
+        assert!(proof.proof.len() > 0);
     }
 
     #[tokio::test]
@@ -314,5 +315,24 @@ mod tests {
 
         let result = generate_proof_sequential(&trace, &config).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_trace_rejected() {
+        let trace = EvmTrace {
+            opcodes: vec![],
+            stack_states: vec![],
+            pcs: vec![],
+            gas_values: vec![],
+            memory_ops: None,
+            storage_ops: None,
+            tx_hash: None,
+            block_number: None,
+            bytecode: None,
+        };
+
+        let config = ProverConfig::default();
+        let result = generate_proof_parallel(&trace, &config).await;
+        assert!(result.is_err());
     }
 }
