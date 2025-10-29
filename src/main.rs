@@ -6,7 +6,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use zephyr_proof::{
-    fetch_real_trace, generate_proof, new_prover, new_prover_with_params, prove_transaction,
+    fetch_real_trace, generate_proof, prove_transaction,
     verify_proof, ProofOutput, ProverConfig,
 };
 

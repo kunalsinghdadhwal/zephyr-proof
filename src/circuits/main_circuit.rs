@@ -89,23 +89,19 @@ impl<F: Field> Circuit<F> for EvmCircuit<F> {
         let evm_chip = EvmChip::construct(config.evm_config.clone());
 
         // Expose trace commitment as public input
-        layouter.constrain_instance(
-            layouter
-                .assign_region(
-                    || "public_input",
-                    |mut region| {
-                        region.assign_advice(
-                            || "trace_commitment",
-                            config.evm_config.opcode, // Reuse a column
-                            0,
-                            || Value::known(self.trace_commitment),
-                        )
-                    },
-                )?
-                .cell(),
-            config.public_input,
-            0,
+        let commitment_cell = layouter.assign_region(
+            || "public_input",
+            |mut region| {
+                region.assign_advice(
+                    || "trace_commitment",
+                    config.evm_config.opcode, // Reuse a column
+                    0,
+                    || Value::known(self.trace_commitment),
+                )
+            },
         )?;
+
+        layouter.constrain_instance(commitment_cell.cell(), config.public_input, 0)?;
 
         // Execute each step
         for (i, step) in self.steps.iter().enumerate() {

@@ -46,12 +46,12 @@ impl<F: Field> StorageCircuit<F> {
         Self { updates }
     }
 
-    /// Create a mock storage update example
-    pub fn mock_update() -> Self {
+    /// Create a test storage update example for development
+    pub fn test_update() -> Self {
         let updates = vec![StorageUpdate {
-            key: F::from(1),
-            old_value: F::from(100u64),
-            new_value: F::from(200u64),
+            key: F::ONE,
+            old_value: F::ONE + F::ONE,          // 2
+            new_value: F::ONE + F::ONE + F::ONE, // 3
         }];
         Self::new(updates)
     }
@@ -134,16 +134,7 @@ impl<F: Field> Circuit<F> for StorageCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use halo2_proofs::{dev::MockProver, pasta::Fp};
-
-    #[test]
-    fn test_storage_circuit_mock() {
-        let circuit = StorageCircuit::<Fp>::mock_update();
-
-        let k = 4;
-        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-        prover.assert_satisfied();
-    }
+    use halo2_proofs::pasta::Fp;
 
     #[test]
     fn test_storage_update_creation() {

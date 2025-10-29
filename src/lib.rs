@@ -32,7 +32,6 @@ pub mod utils;
 
 use errors::ProverError;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 /// Configuration for the proof generation process
 #[derive(Debug, Clone)]
