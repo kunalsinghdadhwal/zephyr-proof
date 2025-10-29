@@ -10,10 +10,7 @@ use crate::{
     ProofOutput, ProverConfig, TraceInfo,
 };
 use base64::{engine::general_purpose, Engine as _};
-use halo2_proofs::{
-    dev::MockProver,
-    pasta::Fp,
-};
+use halo2_proofs::{dev::MockProver, pasta::Fp};
 use rayon::prelude::*;
 
 /// Serialize proof for development purposes
@@ -23,21 +20,21 @@ fn serialize_proof_dev<F: halo2_proofs::arithmetic::Field>(
     public_inputs: &[F],
 ) -> Result<Vec<u8>> {
     use sha2::{Digest, Sha256};
-    
+
     // Create a deterministic representation for development
     let mut hasher = Sha256::new();
-    
+
     for input in public_inputs {
         // Hash the public inputs
         hasher.update(format!("{:?}", input).as_bytes());
     }
-    
+
     let hash = hasher.finalize();
-    
+
     // Create a proof-like structure (256 bytes for development)
     let mut proof = vec![0u8; 256];
     proof[..32].copy_from_slice(&hash);
-    
+
     Ok(proof)
 }
 

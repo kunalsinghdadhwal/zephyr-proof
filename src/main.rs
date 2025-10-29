@@ -6,8 +6,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use zephyr_proof::{
-    fetch_real_trace, generate_proof, prove_transaction,
-    verify_proof, ProofOutput, ProverConfig,
+    fetch_real_trace, generate_proof, prove_transaction, verify_proof, ProofOutput, ProverConfig,
 };
 
 #[derive(Parser, Debug)]

@@ -58,7 +58,7 @@ pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result
         hasher.update(format!("{:?}", input).as_bytes());
     }
     let expected_hash = hasher.finalize();
-    
+
     // Check first 32 bytes match the hash
     if proof_bytes.len() >= 32 && proof_bytes[..32] != expected_hash[..] {
         return Err(ProverError::VerificationError(

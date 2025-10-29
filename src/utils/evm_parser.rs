@@ -132,9 +132,7 @@ pub async fn fetch_trace_from_network(tx_hash: &str, rpc_url: &str) -> Result<Ev
     let provider = ProviderBuilder::new()
         .connect(rpc_url)
         .await
-        .map_err(|e| {
-            ProverError::RpcConnectionError(format!("Failed to connect to RPC: {}", e))
-        })?;
+        .map_err(|e| ProverError::RpcConnectionError(format!("Failed to connect to RPC: {}", e)))?;
 
     // Fetch transaction details
     let tx_hash_parsed = tx_hash

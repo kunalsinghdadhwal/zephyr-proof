@@ -174,7 +174,7 @@ impl<F: Field> EvmChip<F> {
                 let opcode_field = u64_to_field::<F>(opcode as u64);
                 let pc_field = u64_to_field::<F>(pc);
                 let gas_field = u64_to_field::<F>(gas);
-                
+
                 region.assign_advice(
                     || "opcode",
                     self.config.opcode,
@@ -194,12 +194,7 @@ impl<F: Field> EvmChip<F> {
                     || Value::known(stack_1),
                 )?;
                 region.assign_advice(|| "pc", self.config.pc, 0, || Value::known(pc_field))?;
-                region.assign_advice(
-                    || "gas",
-                    self.config.gas,
-                    0,
-                    || Value::known(gas_field),
-                )?;
+                region.assign_advice(|| "gas", self.config.gas, 0, || Value::known(gas_field))?;
 
                 // Compute next state (simplified - real EVM has complex state transitions)
                 let result = match OpCode::from_u8(opcode) {
