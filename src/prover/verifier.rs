@@ -85,18 +85,21 @@ pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result
 ///
 /// Vector of booleans indicating which proofs are valid
 pub async fn batch_verify(proofs: Vec<&ProofOutput>, config: &ProverConfig) -> Result<Vec<bool>> {
-    use rayon::prelude::*;
-
     if config.parallel {
-        // Parallel verification
-        let results: Vec<_> = proofs
-            .par_iter()
-            .map(|proof| {
-                tokio::runtime::Handle::current()
-                    .block_on(verify(proof, config))
-                    .unwrap_or(false)
-            })
-            .collect();
+        // Parallel verification using tokio tasks instead of rayon
+        let mut tasks = Vec::new();
+        for proof in proofs {
+            let proof_clone = proof.clone();
+            let config_clone = config.clone();
+            tasks.push(tokio::spawn(async move {
+                verify(&proof_clone, &config_clone).await.unwrap_or(false)
+            }));
+        }
+        
+        let mut results = Vec::new();
+        for task in tasks {
+            results.push(task.await.unwrap_or(false));
+        }
         Ok(results)
     } else {
         // Sequential verification
@@ -118,8 +121,17 @@ mod tests {
         use sha2::{Digest, Sha256};
         use halo2_proofs::pasta::Fp;
 
-        // Create a valid proof structure
-        let public_inputs_fp = vec![Fp::from(123u64)];
+        // Create a valid proof structure - must match verifier's parsing
+        let public_inputs_str = vec!["0x7b".to_string()]; // 123 in hex
+        
+        // Parse exactly as the verifier does
+        let public_inputs_fp: Vec<Fp> = public_inputs_str
+            .iter()
+            .map(|s| {
+                let val = s.trim_matches(|c| c == '0' || c == 'x');
+                Fp::from(val.parse::<u64>().unwrap_or(0))
+            })
+            .collect();
         
         // Generate expected hash
         let mut hasher = Sha256::new();
@@ -134,7 +146,7 @@ mod tests {
         
         let proof = ProofOutput {
             proof: general_purpose::STANDARD.encode(&proof_bytes),
-            public_inputs: vec!["0x7b".to_string()], // 123 in hex
+            public_inputs: public_inputs_str,
             metadata: TraceInfo {
                 opcode_count: 3,
                 gas_used: 9,
@@ -193,7 +205,17 @@ mod tests {
         use sha2::{Digest, Sha256};
         use halo2_proofs::pasta::Fp;
 
-        let public_inputs_fp = vec![Fp::from(3u64)];
+        let public_inputs_str = vec!["0x3".to_string()];
+        
+        // Parse exactly as the verifier does
+        let public_inputs_fp: Vec<Fp> = public_inputs_str
+            .iter()
+            .map(|s| {
+                let val = s.trim_matches(|c| c == '0' || c == 'x');
+                Fp::from(val.parse::<u64>().unwrap_or(0))
+            })
+            .collect();
+
         let mut hasher = Sha256::new();
         for input in &public_inputs_fp {
             hasher.update(format!("{:?}", input).as_bytes());
@@ -205,7 +227,7 @@ mod tests {
 
         let proof1 = ProofOutput {
             proof: general_purpose::STANDARD.encode(&proof_bytes),
-            public_inputs: vec!["0x3".to_string()],
+            public_inputs: public_inputs_str.clone(),
             metadata: TraceInfo {
                 opcode_count: 3,
                 gas_used: 9,

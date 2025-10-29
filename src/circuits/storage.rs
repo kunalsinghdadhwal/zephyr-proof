@@ -141,77 +141,79 @@ mod tests {
 
     #[test]
     fn test_storage_circuit_basic() {
-        let key = Fp::from(1);
-        let old_value = Fp::from(100);
-        let new_value = Fp::from(200);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(1),
+            old_value: Fp::from(100),
+            new_value: Fp::from(200),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_storage_circuit_zero_values() {
-        let key = Fp::from(0);
-        let old_value = Fp::from(0);
-        let new_value = Fp::from(0);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(0),
+            old_value: Fp::from(0),
+            new_value: Fp::from(0),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_storage_circuit_large_values() {
-        let key = Fp::from(999999);
-        let old_value = Fp::from(888888);
-        let new_value = Fp::from(777777);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(999999),
+            old_value: Fp::from(888888),
+            new_value: Fp::from(777777),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_storage_circuit_update_from_zero() {
-        let key = Fp::from(42);
-        let old_value = Fp::from(0);
-        let new_value = Fp::from(1000);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(42),
+            old_value: Fp::from(0),
+            new_value: Fp::from(1000),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_storage_circuit_update_to_zero() {
-        let key = Fp::from(42);
-        let old_value = Fp::from(1000);
-        let new_value = Fp::from(0);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(42),
+            old_value: Fp::from(1000),
+            new_value: Fp::from(0),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_storage_circuit_same_value() {
-        let key = Fp::from(10);
-        let old_value = Fp::from(500);
-        let new_value = Fp::from(500);
-
-        let circuit = StorageCircuit { key, old_value, new_value };
+        let updates = vec![StorageUpdate {
+            key: Fp::from(10),
+            old_value: Fp::from(500),
+            new_value: Fp::from(500),
+        }];
+        let circuit = StorageCircuit::new(updates);
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
 
     #[test]
     fn test_update_helper() {
-        let key = Fp::from(123);
-        let old_value = Fp::from(456);
-        let new_value = Fp::from(789);
-
-        let circuit = test_update(key, old_value, new_value);
+        let circuit = StorageCircuit::<Fp>::test_update();
         let prover = MockProver::run(4, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
     }
