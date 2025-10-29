@@ -51,34 +51,6 @@ impl<F: Field> EvmCircuit<F> {
             trace_commitment,
         }
     }
-
-    /// Create a simple ADD example circuit
-    /// Test: PUSH1 0x01, PUSH1 0x02, ADD -> stack top = 0x03
-    pub fn mock_add() -> Self {
-        let steps = vec![
-            ExecutionStep {
-                opcode: 0x60, // PUSH1
-                stack: [F::from(1), F::ZERO, F::ZERO],
-                pc: 0,
-                gas: 1000,
-            },
-            ExecutionStep {
-                opcode: 0x60, // PUSH1
-                stack: [F::from(2), F::from(1), F::ZERO],
-                pc: 2,
-                gas: 997,
-            },
-            ExecutionStep {
-                opcode: 0x01, // ADD
-                stack: [F::from(3), F::ZERO, F::ZERO],
-                pc: 4,
-                gas: 994,
-            },
-        ];
-        // Mock trace commitment (in real impl, this would be a Poseidon hash)
-        let trace_commitment = F::from(12345);
-        Self::new(steps, trace_commitment)
-    }
 }
 
 impl<F: Field> Circuit<F> for EvmCircuit<F> {
@@ -156,9 +128,35 @@ mod tests {
     use super::*;
     use halo2_proofs::{dev::MockProver, pasta::Fp};
 
+    /// Helper to create a test circuit
+    fn create_test_circuit() -> EvmCircuit<Fp> {
+        let steps = vec![
+            ExecutionStep {
+                opcode: 0x60, // PUSH1
+                stack: [Fp::from(1), Fp::ZERO, Fp::ZERO],
+                pc: 0,
+                gas: 1000,
+            },
+            ExecutionStep {
+                opcode: 0x60, // PUSH1
+                stack: [Fp::from(2), Fp::from(1), Fp::ZERO],
+                pc: 2,
+                gas: 997,
+            },
+            ExecutionStep {
+                opcode: 0x01, // ADD
+                stack: [Fp::from(3), Fp::ZERO, Fp::ZERO],
+                pc: 4,
+                gas: 994,
+            },
+        ];
+        let trace_commitment = Fp::from(12345u64);
+        EvmCircuit::new(steps, trace_commitment)
+    }
+
     #[test]
-    fn test_evm_circuit_mock_add() {
-        let circuit = EvmCircuit::<Fp>::mock_add();
+    fn test_evm_circuit_add() {
+        let circuit = create_test_circuit();
 
         // Public inputs: trace commitment
         let public_inputs = vec![circuit.trace_commitment];

@@ -6,5 +6,5 @@
 pub mod add_chip;
 pub mod evm_chip;
 
-pub use add_chip::AddChip;
-pub use evm_chip::EvmChip;
+pub use add_chip::*;
+pub use evm_chip::*;

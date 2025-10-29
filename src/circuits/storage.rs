@@ -50,8 +50,8 @@ impl<F: Field> StorageCircuit<F> {
     pub fn mock_update() -> Self {
         let updates = vec![StorageUpdate {
             key: F::from(1),
-            old_value: F::from(100),
-            new_value: F::from(200),
+            old_value: F::from(100u64),
+            new_value: F::from(200u64),
         }];
         Self::new(updates)
     }

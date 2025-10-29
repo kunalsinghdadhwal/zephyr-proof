@@ -5,8 +5,8 @@
 
 use halo2_proofs::{
     arithmetic::Field,
-    circuit::{AssignedCell, Chip, Layouter, Region, Value},
-    plonk::{Advice, Column, ConstraintSystem, Error, Expression, Selector},
+    circuit::{AssignedCell, Chip, Layouter, Value},
+    plonk::{Advice, Column, ConstraintSystem, Error, Selector},
     poly::Rotation,
 };
 use std::marker::PhantomData;

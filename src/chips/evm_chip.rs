@@ -1,17 +1,26 @@
 //! EVM chip for opcode constraints
 //!
-//! Implements Halo2 constraints for EVM execution semantics including
-//! stack operations, memory access, and opcode transitions.
+//! Implements core EVM operations with Halo2 circuits.
 
 use halo2_proofs::{
     arithmetic::Field,
-    circuit::{AssignedCell, Chip, Layouter, Value},
+    circuit::{AssignedCell, Layouter, Value},
     plonk::{Advice, Column, ConstraintSystem, Error, Expression, Selector},
     poly::Rotation,
 };
-use std::marker::PhantomData;
 
-use super::AddChip;
+/// Helper function to convert u64 to field element
+/// Works by repeated addition since Field doesn't have From<u64>
+fn u64_to_field<F: Field>(val: u64) -> F {
+    let mut result = F::ZERO;
+    let mut remaining = val;
+    while remaining > 0 {
+        result += F::ONE;
+        remaining -= 1;
+    }
+    result
+}
+use std::marker::PhantomData;
 
 /// EVM opcodes we support (subset for MVP)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,19 +76,6 @@ pub struct EvmChip<F: Field> {
     _marker: PhantomData<F>,
 }
 
-impl<F: Field> Chip<F> for EvmChip<F> {
-    type Config = EvmChipConfig;
-    type Loaded = ();
-
-    fn config(&self) -> &Self::Config {
-        &self.config
-    }
-
-    fn loaded(&self) -> &Self::Loaded {
-        &()
-    }
-}
-
 impl<F: Field> EvmChip<F> {
     /// Construct a new EvmChip
     pub fn construct(config: EvmChipConfig) -> Self {
@@ -87,6 +83,11 @@ impl<F: Field> EvmChip<F> {
             config,
             _marker: PhantomData,
         }
+    }
+
+    /// Get the chip configuration
+    pub fn config(&self) -> &EvmChipConfig {
+        &self.config
     }
 
     /// Configure the EVM chip
@@ -129,7 +130,8 @@ impl<F: Field> EvmChip<F> {
             let s = meta.query_selector(s_opcode);
             let gas_cur = meta.query_advice(gas, Rotation::cur());
             let gas_next = meta.query_advice(gas, Rotation::next());
-            let gas_cost = Expression::Constant(F::from(3)); // Fixed cost for MVP
+            // Use F::ONE + F::ONE + F::ONE to represent 3
+            let gas_cost = Expression::Constant(F::ONE + F::ONE + F::ONE);
 
             vec![s * (gas_next - gas_cur + gas_cost)]
         });
@@ -169,11 +171,15 @@ impl<F: Field> EvmChip<F> {
                 self.config.s_opcode.enable(&mut region, 0)?;
 
                 // Assign current state
+                let opcode_field = u64_to_field::<F>(opcode as u64);
+                let pc_field = u64_to_field::<F>(pc);
+                let gas_field = u64_to_field::<F>(gas);
+                
                 region.assign_advice(
                     || "opcode",
                     self.config.opcode,
                     0,
-                    || Value::known(F::from(opcode as u64)),
+                    || Value::known(opcode_field),
                 )?;
                 region.assign_advice(
                     || "stack_0",
@@ -187,12 +193,12 @@ impl<F: Field> EvmChip<F> {
                     0,
                     || Value::known(stack_1),
                 )?;
-                region.assign_advice(|| "pc", self.config.pc, 0, || Value::known(F::from(pc)))?;
+                region.assign_advice(|| "pc", self.config.pc, 0, || Value::known(pc_field))?;
                 region.assign_advice(
                     || "gas",
                     self.config.gas,
                     0,
-                    || Value::known(F::from(gas)),
+                    || Value::known(gas_field),
                 )?;
 
                 // Compute next state (simplified - real EVM has complex state transitions)
@@ -202,6 +208,10 @@ impl<F: Field> EvmChip<F> {
                     Some(OpCode::Sub) => stack_top - stack_1,
                     _ => stack_top, // PUSH1, STOP don't modify stack top in this model
                 };
+
+                // Compute next values
+                let pc_next_field = u64_to_field::<F>(pc + 1);
+                let gas_next_field = u64_to_field::<F>(gas.saturating_sub(3));
 
                 region.assign_advice(
                     || "stack_2",
@@ -215,13 +225,13 @@ impl<F: Field> EvmChip<F> {
                     || "pc_next",
                     self.config.pc,
                     1,
-                    || Value::known(F::from(pc + 1)),
+                    || Value::known(pc_next_field),
                 )?;
                 region.assign_advice(
                     || "gas_next",
                     self.config.gas,
                     1,
-                    || Value::known(F::from(gas - 3)),
+                    || Value::known(gas_next_field),
                 )?;
 
                 Ok(region.assign_advice(

@@ -6,8 +6,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use zephyr_proof::{
-    ProofOutput, ProverConfig, fetch_real_trace, generate_proof, new_prover,
-    new_prover_with_params, prove_transaction, verify_proof,
+    fetch_real_trace, generate_proof, new_prover, new_prover_with_params, prove_transaction,
+    verify_proof, ProofOutput, ProverConfig,
 };
 
 #[derive(Parser, Debug)]
@@ -78,17 +78,6 @@ enum Commands {
 
         /// Output trace file path
         #[arg(short, long, default_value = "trace.json")]
-        output: PathBuf,
-    },
-
-    /// Generate a mock trace for testing
-    Mock {
-        /// Type of mock trace (add, mul)
-        #[arg(default_value = "add")]
-        trace_type: String,
-
-        /// Output trace file path
-        #[arg(short, long, default_value = "mock_trace.json")]
         output: PathBuf,
     },
 }
@@ -216,35 +205,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(block) = trace.block_number {
                 println!("   Block: {}", block);
             }
-
-            // Save trace
-            let trace_json = serde_json::to_string_pretty(&trace)?;
-            std::fs::write(&output, trace_json)?;
-
-            println!("💾 Trace saved to: {}", output.display());
-        }
-
-        Commands::Mock { trace_type, output } => {
-            use zephyr_proof::utils::evm_parser::EvmTrace;
-
-            println!("🎭 Generating mock {} trace...", trace_type);
-
-            let trace = match trace_type.as_str() {
-                "add" => EvmTrace::mock_add(),
-                "mul" => EvmTrace::mock_mul(),
-                _ => {
-                    eprintln!("❌ Unknown trace type: {}. Use 'add' or 'mul'.", trace_type);
-                    std::process::exit(1);
-                }
-            };
-
-            println!("✅ Mock trace generated!");
-            println!("   Opcodes: {}", trace.opcodes.len());
-            println!(
-                "   Gas: {} -> {}",
-                trace.gas_values[0],
-                trace.gas_values.last().unwrap()
-            );
 
             // Save trace
             let trace_json = serde_json::to_string_pretty(&trace)?;

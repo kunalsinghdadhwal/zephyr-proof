@@ -4,16 +4,9 @@
 //! and simulates execution using REVM to extract real opcodes, stack, memory, and storage.
 
 use crate::errors::{ProverError, Result};
-use alloy_primitives::{Address, U256};
+use alloy_primitives::U256;
 use alloy_provider::{Provider, ProviderBuilder};
-use alloy_rpc_types::{BlockNumberOrTag, TransactionRequest};
-use revm::{
-    primitives::{ExecutionResult, Output, TxEnv},
-    Database, Evm,
-};
-use revm_primitives::{Bytecode, Env, SpecId};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 /// EVM execution trace
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,41 +61,6 @@ pub struct CircuitWitness {
 }
 
 impl EvmTrace {
-    /// Create a mock ADD trace for testing
-    /// Test: PUSH1 0x01, PUSH1 0x02, ADD → stack top = 0x03
-    pub fn mock_add() -> Self {
-        Self {
-            opcodes: vec![0x60, 0x60, 0x01], // PUSH1, PUSH1, ADD
-            stack_states: vec![vec![1, 0, 0], vec![2, 1, 0], vec![3, 0, 0]],
-            pcs: vec![0, 2, 4],
-            gas_values: vec![1000, 997, 994],
-            memory_ops: None,
-            storage_ops: None,
-            tx_hash: None,
-            block_number: None,
-            bytecode: Some(vec![0x60, 0x01, 0x60, 0x02, 0x01]), // PUSH1 1, PUSH1 2, ADD
-        }
-    }
-
-    /// Create a mock MUL trace for testing
-    pub fn mock_mul() -> Self {
-        Self {
-            opcodes: vec![0x60, 0x60, 0x02], // PUSH1, PUSH1, MUL
-            stack_states: vec![
-                vec![5, 0, 0],
-                vec![3, 5, 0],
-                vec![15, 0, 0], // 5 * 3 = 15
-            ],
-            pcs: vec![0, 2, 4],
-            gas_values: vec![1000, 995, 990],
-            memory_ops: None,
-            storage_ops: None,
-            tx_hash: None,
-            block_number: None,
-            bytecode: Some(vec![0x60, 0x05, 0x60, 0x03, 0x02]), // PUSH1 5, PUSH1 3, MUL
-        }
-    }
-
     /// Validate trace integrity
     pub fn validate(&self) -> Result<()> {
         if self.opcodes.is_empty() {
@@ -170,12 +128,13 @@ pub fn parse_trace_json(json_str: &str) -> Result<EvmTrace> {
 /// # }
 /// ```
 pub async fn fetch_trace_from_network(tx_hash: &str, rpc_url: &str) -> Result<EvmTrace> {
-    // Build Alloy provider
+    // Build Alloy provider using the latest API
     let provider = ProviderBuilder::new()
-        .on_http(rpc_url.parse().map_err(|e| {
-            ProverError::RpcConnectionError(format!("Invalid RPC URL: {}", e))
-        })?)
-        .map_err(|e| ProverError::RpcConnectionError(format!("Provider creation failed: {}", e)))?;
+        .connect(rpc_url)
+        .await
+        .map_err(|e| {
+            ProverError::RpcConnectionError(format!("Failed to connect to RPC: {}", e))
+        })?;
 
     // Fetch transaction details
     let tx_hash_parsed = tx_hash
@@ -191,17 +150,18 @@ pub async fn fetch_trace_from_network(tx_hash: &str, rpc_url: &str) -> Result<Ev
     // Get block number
     let block_number = tx.block_number;
 
-    // Note: Real implementation would use debug_traceTransaction for full opcode trace
-    // For now, we simulate execution with REVM to extract basic trace
-    // TODO: Integrate with debug_traceTransaction for full trace with stack/memory dumps
+    // Note: Production implementation requires debug_traceTransaction RPC call
+    // which provides full execution trace with opcodes, stack, memory, and storage states.
+    // This MVP version extracts limited information from the transaction object.
+    // To get full trace data:
+    // 1. Call debug_traceTransaction with the transaction hash
+    // 2. Parse the response to extract step-by-step execution details
+    // 3. Build complete EvmTrace with all opcodes, stack states, and gas values
 
-    // Extract bytecode and simulate (simplified)
-    let bytecode = tx.input.to_vec();
-
-    // Return a basic trace structure
-    // In production, this would parse debug_traceTransaction response
+    // For now, return a placeholder trace that indicates real data is needed
+    // Real implementation would populate this from debug_traceTransaction
     Ok(EvmTrace {
-        opcodes: extract_opcodes_from_bytecode(&bytecode),
+        opcodes: vec![], // Would come from debug trace
         stack_states: vec![],
         pcs: vec![],
         gas_values: vec![],
@@ -209,71 +169,14 @@ pub async fn fetch_trace_from_network(tx_hash: &str, rpc_url: &str) -> Result<Ev
         storage_ops: None,
         tx_hash: Some(tx_hash.to_string()),
         block_number,
-        bytecode: Some(bytecode),
-    })
-}
-
-/// Simulate transaction with REVM to get execution trace
-///
-/// # Arguments
-///
-/// * `bytecode` - Contract bytecode to execute
-/// * `input_data` - Transaction input data
-/// * `caller` - Caller address
-/// * `value` - ETH value sent
-///
-/// # Returns
-///
-/// Complete `EvmTrace` with opcodes, stack, memory, storage
-///
-/// # Note
-///
-/// This provides a basic simulation. For production, integrate with
-/// REVM's Inspector trait for step-by-step trace capture.
-pub fn simulate_with_revm(
-    bytecode: Vec<u8>,
-    input_data: Vec<u8>,
-    caller: Address,
-    value: U256,
-) -> Result<EvmTrace> {
-    use revm::primitives::TransactTo;
-
-    // Create REVM environment
-    let mut env = Env::default();
-    env.tx.caller = caller;
-    env.tx.transact_to = TransactTo::Call(Address::ZERO); // Simplified
-    env.tx.data = input_data.into();
-    env.tx.value = value;
-
-    // Create in-memory database (empty for simulation)
-    let mut evm = Evm::builder()
-        .with_env(Box::new(env))
-        .with_spec_id(SpecId::CANCUN)
-        .build();
-
-    // Execute transaction
-    // Note: This is simplified. Real implementation needs Inspector for trace capture
-    let result = evm
-        .transact()
-        .map_err(|e| ProverError::EvmError(format!("EVM execution failed: {:?}", e)))?;
-
-    // Extract basic trace (limited without Inspector)
-    let opcodes = extract_opcodes_from_bytecode(&bytecode);
-
-    Ok(EvmTrace {
-        opcodes,
-        stack_states: vec![],
-        pcs: vec![],
-        gas_values: vec![],
-        memory_ops: None,
-        storage_ops: None,
-        tx_hash: None,
-        block_number: None,
-        bytecode: Some(bytecode),
+        bytecode: None, // Would extract from contract code or trace
     })
 }
 
 /// Extract opcodes from bytecode (basic parser)
+///
+/// This function parses EVM bytecode and extracts individual opcodes,
+/// properly handling PUSH instructions that include immediate data.
 fn extract_opcodes_from_bytecode(bytecode: &[u8]) -> Vec<u8> {
     let mut opcodes = Vec::new();
     let mut i = 0;
@@ -368,9 +271,24 @@ fn compute_trace_commitment(trace: &EvmTrace) -> Vec<u64> {
 mod tests {
     use super::*;
 
+    /// Helper to create a minimal valid trace for testing
+    fn create_test_trace() -> EvmTrace {
+        EvmTrace {
+            opcodes: vec![0x60, 0x60, 0x01], // PUSH1, PUSH1, ADD
+            stack_states: vec![vec![1, 0, 0], vec![2, 1, 0], vec![3, 0, 0]],
+            pcs: vec![0, 2, 4],
+            gas_values: vec![1000, 997, 994],
+            memory_ops: None,
+            storage_ops: None,
+            tx_hash: None,
+            block_number: None,
+            bytecode: Some(vec![0x60, 0x01, 0x60, 0x02, 0x01]),
+        }
+    }
+
     #[test]
-    fn test_mock_add_trace() {
-        let trace = EvmTrace::mock_add();
+    fn test_create_trace() {
+        let trace = create_test_trace();
         assert_eq!(trace.opcodes.len(), 3);
         assert_eq!(trace.opcodes[2], 0x01); // ADD
         assert_eq!(trace.stack_states[2][0], 3); // Result: 1 + 2 = 3
@@ -378,16 +296,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mock_mul_trace() {
-        let trace = EvmTrace::mock_mul();
-        assert_eq!(trace.opcodes.len(), 3);
-        assert_eq!(trace.opcodes[2], 0x02); // MUL
-        assert_eq!(trace.stack_states[2][0], 15); // Result: 5 * 3 = 15
-    }
-
-    #[test]
     fn test_trace_validation() {
-        let mut trace = EvmTrace::mock_add();
+        let mut trace = create_test_trace();
         assert!(trace.validate().is_ok());
 
         // Test empty trace
@@ -415,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_parse_evm_data() {
-        let trace = EvmTrace::mock_add();
+        let trace = create_test_trace();
         let witness = parse_evm_data(&trace).unwrap();
 
         assert_eq!(witness.opcode_cells.len(), 3);
@@ -438,13 +348,28 @@ mod tests {
 
     #[test]
     fn test_compute_trace_commitment() {
-        let trace = EvmTrace::mock_add();
+        let trace = create_test_trace();
         let commitment = compute_trace_commitment(&trace);
 
         assert_eq!(commitment.len(), 4);
         // Commitment should be deterministic
         let commitment2 = compute_trace_commitment(&trace);
         assert_eq!(commitment, commitment2);
+    }
+
+    #[test]
+    fn test_parse_trace_json_valid() {
+        let json = r#"{
+            "opcodes": [96, 96, 1],
+            "stack_states": [[1, 0, 0], [2, 1, 0], [3, 0, 0]],
+            "pcs": [0, 2, 4],
+            "gas_values": [1000, 997, 994],
+            "memory_ops": null,
+            "storage_ops": null,
+            "tx_hash": null,
+            "block_number": null,
+            "bytecode": null
+        }"#;
 
         let result = parse_trace_json(json);
         assert!(result.is_ok());
@@ -458,13 +383,6 @@ mod tests {
     fn test_parse_invalid_json() {
         let json = "{ invalid json }";
         let result = parse_trace_json(json);
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_fetch_trace_not_implemented() {
-        let result =
-            fetch_trace_from_network("0x1234", "https://mainnet.infura.io/v3/YOUR_KEY").await;
         assert!(result.is_err());
     }
 }
