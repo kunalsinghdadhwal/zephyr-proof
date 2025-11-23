@@ -4,8 +4,3 @@ tab_spaces = 4
 hard_tabs = false
 newline_style = "Unix"
 
-[format]
-imports_granularity = "Crate"
-imports_sort_alphabetically = true
-reorder_imports = true
-group_imports = "StdExternalCrate"

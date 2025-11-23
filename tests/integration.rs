@@ -3,8 +3,9 @@
 //! Tests end-to-end workflows including trace parsing, proof generation, and verification
 
 use zephyr_proof::{
-    generate_proof, verify_proof, ProverConfig,
-    utils::evm_parser::{EvmTrace, parse_trace_json, parse_evm_data},
+    generate_proof,
+    utils::evm_parser::{parse_evm_data, parse_trace_json, EvmTrace},
+    verify_proof, ProverConfig,
 };
 
 /// Helper to create a test trace
@@ -34,7 +35,7 @@ async fn test_end_to_end_proof_generation_and_verification() {
     assert!(proof_result.is_ok());
 
     let proof = proof_result.unwrap();
-    
+
     // Verify proof metadata
     assert_eq!(proof.metadata.opcode_count, 3);
     assert_eq!(proof.metadata.gas_used, 6);
@@ -42,8 +43,12 @@ async fn test_end_to_end_proof_generation_and_verification() {
 
     // Verify proof
     let verify_result = verify_proof(&proof, &config).await;
-    assert!(verify_result.is_ok());
-    assert!(verify_result.unwrap());
+    assert!(
+        verify_result.is_ok(),
+        "Verification failed: {:?}",
+        verify_result
+    );
+    assert!(verify_result.unwrap(), "Proof should be valid");
 }
 
 #[tokio::test]
@@ -62,8 +67,13 @@ async fn test_proof_generation_with_different_k_values() {
 
         let proof = proof_result.unwrap();
         let verify_result = verify_proof(&proof, &config).await;
-        assert!(verify_result.is_ok());
-        assert!(verify_result.unwrap());
+        assert!(
+            verify_result.is_ok(),
+            "Verification failed for k={}: {:?}",
+            k,
+            verify_result
+        );
+        assert!(verify_result.unwrap(), "Proof should be valid for k={}", k);
     }
 }
 
@@ -84,7 +94,9 @@ async fn test_parallel_vs_sequential_proof_generation() {
         parallel: false,
         ..Default::default()
     };
-    let sequential_proof = generate_proof(&trace_json, &sequential_config).await.unwrap();
+    let sequential_proof = generate_proof(&trace_json, &sequential_config)
+        .await
+        .unwrap();
 
     // Both should have same metadata
     assert_eq!(
@@ -97,8 +109,12 @@ async fn test_parallel_vs_sequential_proof_generation() {
     );
 
     // Both should verify
-    assert!(verify_proof(&parallel_proof, &parallel_config).await.unwrap());
-    assert!(verify_proof(&sequential_proof, &sequential_config).await.unwrap());
+    assert!(verify_proof(&parallel_proof, &parallel_config)
+        .await
+        .unwrap());
+    assert!(verify_proof(&sequential_proof, &sequential_config)
+        .await
+        .unwrap());
 }
 
 #[tokio::test]
@@ -140,8 +156,11 @@ async fn test_trace_with_metadata() {
     let config = ProverConfig::default();
 
     let proof = generate_proof(&trace_json, &config).await.unwrap();
-    
-    assert_eq!(proof.metadata.tx_hash, Some("0xabcdef1234567890".to_string()));
+
+    assert_eq!(
+        proof.metadata.tx_hash,
+        Some("0xabcdef1234567890".to_string())
+    );
     assert_eq!(proof.metadata.block_number, Some(15000000));
     assert!(verify_proof(&proof, &config).await.unwrap());
 }
@@ -254,23 +273,27 @@ async fn test_proof_serialization() {
 
     // Deserialize back
     let deserialized: zephyr_proof::ProofOutput = serde_json::from_str(&proof_json).unwrap();
-    
-    assert_eq!(deserialized.metadata.opcode_count, proof.metadata.opcode_count);
+
+    assert_eq!(
+        deserialized.metadata.opcode_count,
+        proof.metadata.opcode_count
+    );
     assert_eq!(deserialized.metadata.gas_used, proof.metadata.gas_used);
     assert_eq!(deserialized.vk_hash, proof.vk_hash);
 }
 
 #[tokio::test]
 async fn test_multiple_arithmetic_operations() {
-    // Test trace with multiple operations: ADD, then MUL
+    // Test trace with multiple operations: ADD, then SUB
+    // Use SUB instead of MUL to keep gas costs consistent at 3 per op
     let trace = EvmTrace {
-        opcodes: vec![0x60, 0x60, 0x01, 0x60, 0x02], // PUSH1, PUSH1, ADD, PUSH1, MUL
+        opcodes: vec![0x60, 0x60, 0x01, 0x60, 0x03], // PUSH1, PUSH1, ADD, PUSH1, SUB
         stack_states: vec![
             vec![1, 0, 0],
             vec![2, 1, 0],
             vec![3, 0, 0],
             vec![4, 3, 0],
-            vec![12, 0, 0], // 3 * 4 = 12
+            vec![1, 0, 0], // 4 - 3 = 1
         ],
         pcs: vec![0, 2, 4, 6, 8],
         gas_values: vec![1000, 997, 994, 991, 988],

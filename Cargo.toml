@@ -52,6 +52,10 @@ codegen-units = 1
 [workspace]
 members = []
 
+[features]
+cli = []
+bench = []
+
 [dependencies]
 alloy-contract = "1.0.41"
 alloy-primitives = "1.4.1"
@@ -81,6 +85,7 @@ anyhow = "1.0"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 proptest = "1.8.0"
 proptest-derive = "0.6.0"
+num_cpus = "1.16.0"
 
 [dependencies.tracing]
 version = "0.1"

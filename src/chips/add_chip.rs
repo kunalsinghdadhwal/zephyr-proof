@@ -220,7 +220,11 @@ impl<F: Field> Circuit<F> for AddCircuit<F> {
         AddChip::configure(meta, a, b, c)
     }
 
-    fn synthesize(&self, config: Self::Config, mut layouter: impl halo2_proofs::circuit::Layouter<F>) -> Result<(), halo2_proofs::plonk::Error> {
+    fn synthesize(
+        &self,
+        config: Self::Config,
+        mut layouter: impl halo2_proofs::circuit::Layouter<F>,
+    ) -> Result<(), halo2_proofs::plonk::Error> {
         let chip = AddChip::construct(config);
         chip.add(layouter.namespace(|| "add"), self.a, self.b)?;
         Ok(())

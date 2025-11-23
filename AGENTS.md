@@ -1,7 +1,3 @@
----
-applyTo: "**"
----
-
 # Project Overview
 
 This project is a Rust-based CLI tool for generating and verifying zero-knowledge proofs of Ethereum Virtual Machine (EVM) execution traces. It uses the Halo2 proof system integrated with REVM primitives to create efficient zkEVM proofs, supports Ethereum contract interactions via Alloy, and employs parallel processing with Rayon for performance optimization. The tool processes EVM traces, compiles Halo2 circuits with gadgets and curves, and outputs verifiable proofs for blockchain applications.

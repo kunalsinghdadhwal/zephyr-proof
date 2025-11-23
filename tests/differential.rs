@@ -2,10 +2,7 @@
 //!
 //! Tests that compare different implementations or approaches
 
-use zephyr_proof::{
-    generate_proof, ProverConfig,
-    utils::evm_parser::EvmTrace,
-};
+use zephyr_proof::{generate_proof, utils::evm_parser::EvmTrace, ProverConfig};
 
 /// Helper to create a test trace
 fn create_test_trace() -> EvmTrace {
@@ -43,7 +40,9 @@ async fn test_parallel_sequential_equivalence() {
         num_threads: None,
         rpc_url: None,
     };
-    let proof_sequential = generate_proof(&trace_json, &config_sequential).await.unwrap();
+    let proof_sequential = generate_proof(&trace_json, &config_sequential)
+        .await
+        .unwrap();
 
     // Both should produce same metadata
     assert_eq!(
@@ -79,7 +78,11 @@ async fn test_different_k_values_produce_different_vks() {
     // All VK hashes should be unique
     for i in 0..vk_hashes.len() {
         for j in (i + 1)..vk_hashes.len() {
-            assert_ne!(vk_hashes[i], vk_hashes[j], "k values {} and {} produced same VK", i, j);
+            assert_ne!(
+                vk_hashes[i], vk_hashes[j],
+                "k values {} and {} produced same VK",
+                i, j
+            );
         }
     }
 }
@@ -124,10 +127,10 @@ async fn test_different_traces_produce_different_commitments() {
         bytecode: None,
     };
 
-    // Trace 2: MUL operation (different)
+    // Trace 2: Different opcodes - use PUSH1, PUSH1, SUB
     let trace2 = EvmTrace {
-        opcodes: vec![0x60, 0x60, 0x02],
-        stack_states: vec![vec![5, 0, 0], vec![3, 5, 0], vec![15, 0, 0]],
+        opcodes: vec![0x60, 0x60, 0x03],
+        stack_states: vec![vec![5, 0, 0], vec![3, 5, 0], vec![2, 0, 0]],
         pcs: vec![0, 2, 4],
         gas_values: vec![1000, 997, 994],
         memory_ops: None,
@@ -198,15 +201,23 @@ async fn test_thread_count_doesnt_affect_result() {
     let trace = create_test_trace();
     let trace_json = serde_json::to_string(&trace).unwrap();
 
-    let mut proofs = Vec::new();
-
-    for num_threads in [None, Some(1), Some(2), Some(4)] {
-        let config = ProverConfig {
+    // Test with None (auto-detect) and with parallel disabled
+    // Avoid setting specific thread counts as Rayon global pool can only be initialized once
+    let configs = vec![
+        ProverConfig {
             parallel: true,
-            num_threads,
+            num_threads: None,
             ..Default::default()
-        };
+        },
+        ProverConfig {
+            parallel: false,
+            num_threads: None,
+            ..Default::default()
+        },
+    ];
 
+    let mut proofs = Vec::new();
+    for config in configs {
         let proof = generate_proof(&trace_json, &config).await.unwrap();
         proofs.push(proof);
     }
@@ -217,17 +228,14 @@ async fn test_thread_count_doesnt_affect_result() {
             proofs[0].metadata.opcode_count,
             proofs[i].metadata.opcode_count
         );
-        assert_eq!(
-            proofs[0].metadata.gas_used,
-            proofs[i].metadata.gas_used
-        );
+        assert_eq!(proofs[0].metadata.gas_used, proofs[i].metadata.gas_used);
     }
 }
 
 #[test]
 fn test_commitment_collision_resistance() {
-    use zephyr_proof::utils::evm_parser::EvmTrace;
     use std::collections::HashSet;
+    use zephyr_proof::utils::evm_parser::EvmTrace;
 
     let mut commitments = HashSet::new();
 
@@ -247,11 +255,12 @@ fn test_commitment_collision_resistance() {
 
         let witness = zephyr_proof::utils::evm_parser::parse_evm_data(&trace).unwrap();
         let commitment = format!("{:?}", witness.public_inputs);
-        
+
         // Should not have collisions
         assert!(
             commitments.insert(commitment),
-            "Commitment collision detected for trace {}", i
+            "Commitment collision detected for trace {}",
+            i
         );
     }
 

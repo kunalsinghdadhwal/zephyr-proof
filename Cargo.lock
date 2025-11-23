@@ -5113,6 +5113,7 @@ dependencies = [
  "halo2_proofs",
  "halo2curves",
  "hex",
+ "num_cpus",
  "proptest",
  "proptest-derive",
  "rayon",
