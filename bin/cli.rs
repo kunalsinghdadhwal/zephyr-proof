@@ -4,6 +4,7 @@
 //! of Ethereum Virtual Machine (EVM) execution traces.
 
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 use std::path::PathBuf;
 use zephyr_proof::{
     generate_proof, new_prover, new_prover_with_params, prove_transaction, verify_proof,
@@ -67,17 +68,6 @@ enum Commands {
         #[arg(short, long, default_value = "proof.json")]
         output: PathBuf,
     },
-
-    /// Generate a mock trace and proof (for testing)
-    Mock {
-        /// Type of mock trace: add, mul
-        #[arg(default_value = "add")]
-        trace_type: String,
-
-        /// Output file for the proof
-        #[arg(short, long, default_value = "mock_proof.json")]
-        output: PathBuf,
-    },
 }
 
 #[tokio::main]
@@ -104,20 +94,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             output,
             rpc_url,
         } => {
-            println!("🔧 Reading trace from: {}", trace_file.display());
+            println!("Reading trace from: {}", trace_file.display());
 
             // Read trace file
             let trace_json = std::fs::read_to_string(&trace_file)?;
 
             println!(
-                "⚙️  Generating proof with k={}, parallel={}",
-                config.k, config.parallel
+                "{}",
+                format!(
+                    "Generating proof with k={}, parallel={}",
+                    config.k, config.parallel
+                )
+                .cyan()
             );
 
             // Generate proof
             let proof = generate_proof(&trace_json, &config).await?;
 
-            println!("✅ Proof generated successfully!");
+            println!("{}", "Proof generated successfully!".green().bold());
             println!("   Opcodes: {}", proof.metadata.opcode_count);
             println!("   Gas used: {}", proof.metadata.gas_used);
 
@@ -125,27 +119,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let proof_json = serde_json::to_string_pretty(&proof)?;
             std::fs::write(&output, proof_json)?;
 
-            println!("💾 Proof saved to: {}", output.display());
+            println!("Proof saved to: {}", output.display());
         }
 
         Commands::Verify { proof_file } => {
-            println!("🔍 Reading proof from: {}", proof_file.display());
+            println!("Reading proof from: {}", proof_file.display());
 
             // Read proof file
             let proof_json = std::fs::read_to_string(&proof_file)?;
             let proof: ProofOutput = serde_json::from_str(&proof_json)?;
 
-            println!("⚙️  Verifying proof...");
+            println!("{}", "Verifying proof...".cyan());
 
             // Verify proof
             let valid = verify_proof(&proof, &config).await?;
 
             if valid {
-                println!("✅ Proof is VALID!");
+                println!("{}", "Proof is VALID!".green().bold());
                 println!("   Opcodes: {}", proof.metadata.opcode_count);
                 println!("   Gas used: {}", proof.metadata.gas_used);
             } else {
-                println!("❌ Proof is INVALID!");
+                println!("{}", "Proof is INVALID!".red().bold());
                 std::process::exit(1);
             }
         }
@@ -155,13 +149,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             rpc_url,
             output,
         } => {
-            println!("🌐 Fetching transaction: {}", tx_hash);
+            println!("Fetching transaction: {}", tx_hash);
             println!("   RPC URL: {}", rpc_url);
 
             // Fetch and prove transaction
             let proof = prove_transaction(&tx_hash, &rpc_url, &config).await?;
 
-            println!("✅ Proof generated for transaction!");
+            println!("{}", "Proof generated for transaction!".green().bold());
             println!("   Opcodes: {}", proof.metadata.opcode_count);
             println!("   Gas used: {}", proof.metadata.gas_used);
 
@@ -169,41 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let proof_json = serde_json::to_string_pretty(&proof)?;
             std::fs::write(&output, proof_json)?;
 
-            println!("💾 Proof saved to: {}", output.display());
-        }
-
-        Commands::Mock { trace_type, output } => {
-            use zephyr_proof::utils::evm_parser::EvmTrace;
-
-            println!("🧪 Generating mock {} trace", trace_type);
-
-            // Create mock trace
-            let trace = match trace_type.as_str() {
-                "add" => EvmTrace::mock_add(),
-                "mul" => EvmTrace::mock_mul(),
-                _ => {
-                    eprintln!("❌ Unknown trace type: {}", trace_type);
-                    eprintln!("   Available types: add, mul");
-                    std::process::exit(1);
-                }
-            };
-
-            let trace_json = serde_json::to_string(&trace)?;
-
-            println!("⚙️  Generating proof...");
-
-            // Generate proof
-            let proof = generate_proof(&trace_json, &config).await?;
-
-            println!("✅ Mock proof generated!");
-            println!("   Opcodes: {}", proof.metadata.opcode_count);
-            println!("   Gas used: {}", proof.metadata.gas_used);
-
-            // Save proof
-            let proof_json = serde_json::to_string_pretty(&proof)?;
-            std::fs::write(&output, proof_json)?;
-
-            println!("💾 Proof saved to: {}", output.display());
+            println!("Proof saved to: {}", output.display());
         }
     }
 
@@ -217,8 +177,9 @@ mod tests {
     #[test]
     fn test_cli_parsing() {
         // Test that CLI parses correctly
-        let cli = Cli::parse_from(&["zkevm-prover", "mock", "add"]);
+        let cli = Cli::parse_from(&["zkevm-prover", "verify", "proof.json"]);
         assert_eq!(cli.k, 17);
         assert!(!cli.no_parallel);
     }
 }
+

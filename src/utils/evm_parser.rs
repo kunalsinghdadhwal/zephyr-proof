@@ -105,7 +105,7 @@ impl EvmTrace {
 /// # }
 /// ```
 pub async fn fetch_and_execute_tx(tx_hash: &str, rpc_url: &str) -> Result<(EvmTrace, u64)> {
-    let provider = match ProviderBuilder::new().on_builtin(rpc_url).await {
+    let provider = match ProviderBuilder::new().connect(rpc_url).await {
         Ok(p) => p,
         Err(e) => {
             return Err(ProverError::RpcConnectionError(format!(
@@ -125,6 +125,7 @@ pub async fn fetch_and_execute_tx(tx_hash: &str, rpc_url: &str) -> Result<(EvmTr
         .map_err(|e| ProverError::NetworkError(format!("Failed to fetch tx: {}", e)))?
         .ok_or_else(|| ProverError::InvalidTransaction("Transaction not found".to_string()))?;
 
+    println!("{:#?}",tx.clone());
     let block_number = tx.block_number.unwrap_or(0);
 
     // Get receipt for gas used
@@ -133,9 +134,7 @@ pub async fn fetch_and_execute_tx(tx_hash: &str, rpc_url: &str) -> Result<(EvmTr
         .await
         .map_err(|e| ProverError::NetworkError(format!("Failed to fetch receipt: {}", e)))?;
 
-    let gas_used = receipt
-        .as_ref().map(|r| r.gas_used)
-        .unwrap_or(21000);
+    let gas_used = receipt.as_ref().map(|r| r.gas_used).unwrap_or(21000);
 
     // Simple bytecode extraction - for MVP we use a mock trace
     // Production would use debug_traceTransaction RPC call
@@ -356,38 +355,6 @@ fn compute_trace_commitment(trace: &EvmTrace) -> Vec<u64> {
         .collect()
 }
 
-impl EvmTrace {
-    /// Create a mock trace for ADD operation (for testing/CLI)
-    pub fn mock_add() -> Self {
-        EvmTrace {
-            opcodes: vec![0x60, 0x60, 0x01],
-            stack_states: vec![vec![1, 0, 0], vec![2, 1, 0], vec![3, 0, 0]],
-            pcs: vec![0, 2, 4],
-            gas_values: vec![1000, 997, 994],
-            memory_ops: None,
-            storage_ops: None,
-            tx_hash: Some("0xmock_add".to_string()),
-            block_number: Some(1),
-            bytecode: Some(vec![0x60, 0x01, 0x60, 0x02, 0x01]),
-        }
-    }
-
-    /// Create a mock trace for MUL operation (for testing/CLI)
-    pub fn mock_mul() -> Self {
-        EvmTrace {
-            opcodes: vec![0x60, 0x60, 0x02],
-            stack_states: vec![vec![5, 0, 0], vec![3, 5, 0], vec![15, 0, 0]],
-            pcs: vec![0, 2, 4],
-            gas_values: vec![1000, 995, 990],
-            memory_ops: None,
-            storage_ops: None,
-            tx_hash: Some("0xmock_mul".to_string()),
-            block_number: Some(1),
-            bytecode: Some(vec![0x60, 0x05, 0x60, 0x03, 0x02]),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -603,22 +570,6 @@ mod tests {
         assert_eq!(witness.opcode_cells.len(), 3);
         assert_eq!(witness.gas_cells.len(), 3);
         assert_eq!(witness.public_inputs.len(), 4);
-    }
-
-    #[test]
-    fn test_mock_add_trace() {
-        let trace = EvmTrace::mock_add();
-        assert_eq!(trace.opcodes.len(), 3);
-        assert_eq!(trace.opcodes[2], 0x01);
-        assert!(trace.validate().is_ok());
-    }
-
-    #[test]
-    fn test_mock_mul_trace() {
-        let trace = EvmTrace::mock_mul();
-        assert_eq!(trace.opcodes.len(), 3);
-        assert_eq!(trace.opcodes[2], 0x02);
-        assert!(trace.validate().is_ok());
     }
 
     #[test]

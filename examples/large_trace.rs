@@ -4,6 +4,7 @@
 //! This example creates a trace with thousands of operations and shows how the
 //! prover automatically chunks it into manageable pieces for parallel proof generation.
 
+use colored::Colorize;
 use zephyr_proof::{
     generate_proof,
     prover::parallel_prover::generate_proof_chunked,
@@ -13,14 +14,17 @@ use zephyr_proof::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔬 Large Trace Proof Example");
+    println!("{}", "Large Trace Proof Example".cyan().bold());
     println!("============================\n");
 
     // Create progressively larger traces
     let trace_sizes = vec![100, 1000, 5000, 10000];
 
     for size in trace_sizes {
-        println!("📊 Testing trace with {} operations", size);
+        println!(
+            "{}",
+            format!("Testing trace with {} operations", size).cyan()
+        );
         println!("{}", "-".repeat(50));
 
         let trace = generate_large_trace(size);
@@ -51,18 +55,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let needs_chunking = trace.opcodes.len() > max_rows;
 
         if needs_chunking {
-            println!("\n  ⚙️  Will use chunking (trace size > {} rows)", max_rows);
+            println!("\n  Will use chunking (trace size > {} rows)", max_rows);
             let num_chunks = (trace.opcodes.len() + max_rows - 1) / max_rows;
             println!("    Estimated chunks: {}", num_chunks);
         } else {
             println!(
-                "\n  ⚙️  Will prove in single chunk (trace size <= {} rows)",
+                "\n  Will prove in single chunk (trace size <= {} rows)",
                 max_rows
             );
         }
 
         // Generate proof
-        println!("\n  🔨 Generating proof...");
+        println!("\n  {}", "Generating proof...".cyan());
         let start = std::time::Instant::now();
 
         let trace_json = serde_json::to_string(&trace)?;
@@ -70,7 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let duration = start.elapsed();
 
-        println!("  ✅ Proof generated in {:?}", duration);
+        println!(
+            "  {}",
+            format!("Proof generated in {:?}", duration).green().bold()
+        );
         println!("    Proof size: {} bytes", proof.proof.len());
         println!("    VK hash: {}", proof.vk_hash);
 
@@ -79,33 +86,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("    Throughput: {:.2} opcodes/second", ops_per_sec);
 
         // Verify proof
-        println!("\n  🔍 Verifying proof...");
+        println!("\n  {}", "Verifying proof...".cyan());
         let start = std::time::Instant::now();
         let valid = verify_proof(&proof, &config).await?;
         let duration = start.elapsed();
 
         if valid {
-            println!("  ✅ Proof is VALID! (verified in {:?})", duration);
+            println!(
+                "  {}",
+                format!("Proof is VALID! (verified in {:?})", duration)
+                    .green()
+                    .bold()
+            );
         } else {
-            println!("  ❌ Proof is INVALID!");
+            println!("  {}", "Proof is INVALID!".red().bold());
             std::process::exit(1);
         }
 
         // Save proof
         let filename = format!("large_trace_{}_proof.json", size);
         std::fs::write(&filename, serde_json::to_string_pretty(&proof)?)?;
-        println!("\n  💾 Proof saved to: {}\n", filename);
+        println!("\n  Proof saved to: {}\n", filename);
     }
 
-    println!("🎉 All large trace tests completed successfully!\n");
+    println!(
+        "{}",
+        "All large trace tests completed successfully!"
+            .green()
+            .bold()
+    );
+    println!();
 
     // Performance summary
-    println!("📈 Performance Summary");
+    println!("{}", "Performance Summary".cyan());
     println!("=====================");
-    println!("  ✅ Successfully proved traces up to 10,000 operations");
-    println!("  ✅ Automatic chunking for traces exceeding circuit capacity");
-    println!("  ✅ Parallel proof generation with Rayon");
-    println!("  ✅ All proofs verified successfully");
+    println!(
+        "  {}",
+        "Successfully proved traces up to 10,000 operations".green()
+    );
+    println!(
+        "  {}",
+        "Automatic chunking for traces exceeding circuit capacity".green()
+    );
+    println!("  {}", "Parallel proof generation with Rayon".green());
+    println!("  {}", "All proofs verified successfully".green());
 
     Ok(())
 }

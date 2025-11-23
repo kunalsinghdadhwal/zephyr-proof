@@ -4,6 +4,7 @@
 //! of Ethereum Virtual Machine execution traces.
 
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 use std::path::PathBuf;
 use zephyr_proof::{
     fetch_real_trace, generate_proof, prove_transaction, verify_proof, ProofOutput, ProverConfig,
@@ -102,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             output,
             rpc_url,
         } => {
-            println!("📜 Reading trace from: {}", trace_file.display());
+            println!("Reading trace from: {}", trace_file.display());
 
             // Read trace file
             let trace_json = std::fs::read_to_string(&trace_file)?;
@@ -112,14 +113,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config.rpc_url = rpc_url;
 
             println!(
-                "🔨 Generating proof (k={}, parallel={})...",
-                config.k, config.parallel
+                "{}",
+                format!(
+                    "Generating proof (k={}, parallel={})...",
+                    config.k, config.parallel
+                )
+                .cyan()
             );
 
             // Generate proof
             let proof_output = generate_proof(&trace_json, &config).await?;
 
-            println!("✅ Proof generated!");
+            println!("{}", "Proof generated!".green().bold());
             println!("   Opcodes: {}", proof_output.metadata.opcode_count);
             println!("   Gas used: {}", proof_output.metadata.gas_used);
             println!("   Proof size: {} bytes", proof_output.proof.len());
@@ -128,30 +133,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let proof_json = serde_json::to_string_pretty(&proof_output)?;
             std::fs::write(&output, proof_json)?;
 
-            println!("💾 Proof saved to: {}", output.display());
+            println!("Proof saved to: {}", output.display());
         }
 
         Commands::Verify { proof_file } => {
-            println!("📜 Reading proof from: {}", proof_file.display());
+            println!("Reading proof from: {}", proof_file.display());
 
             // Read proof file
             let proof_json = std::fs::read_to_string(&proof_file)?;
             let proof_output: ProofOutput = serde_json::from_str(&proof_json)?;
 
-            println!("🔍 Verifying proof (k={})...", config.k);
+            println!("{}", format!("Verifying proof (k={})...", config.k).cyan());
 
             // Verify proof
             let is_valid = verify_proof(&proof_output, &config).await?;
 
             if is_valid {
-                println!("✅ Proof is VALID!");
+                println!("{}", "Proof is VALID!".green().bold());
                 println!("   Opcodes: {}", proof_output.metadata.opcode_count);
                 println!("   Gas used: {}", proof_output.metadata.gas_used);
                 if let Some(tx_hash) = &proof_output.metadata.tx_hash {
                     println!("   TX hash: {}", tx_hash);
                 }
             } else {
-                println!("❌ Proof is INVALID!");
+                println!("{}", "Proof is INVALID!".red().bold());
                 std::process::exit(1);
             }
         }
@@ -161,19 +166,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             rpc_url,
             output,
         } => {
-            println!("🌐 Fetching transaction: {}", tx_hash);
+            println!("Fetching transaction: {}", tx_hash);
             println!("   RPC: {}", rpc_url);
 
             // Update config with RPC
             let mut config = config;
             config.rpc_url = Some(rpc_url.clone());
 
-            println!("🔨 Simulating and generating proof...");
+            println!("{}", "Simulating and generating proof...".cyan());
 
             // Fetch and prove transaction
             let proof_output = prove_transaction(&tx_hash, &rpc_url, &config).await?;
 
-            println!("✅ Proof generated for real transaction!");
+            println!("{}", "Proof generated for real transaction!".green().bold());
             println!("   TX hash: {}", tx_hash);
             if let Some(block) = proof_output.metadata.block_number {
                 println!("   Block: {}", block);
@@ -185,7 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let proof_json = serde_json::to_string_pretty(&proof_output)?;
             std::fs::write(&output, proof_json)?;
 
-            println!("💾 Proof saved to: {}", output.display());
+            println!("Proof saved to: {}", output.display());
         }
 
         Commands::Fetch {
@@ -193,13 +198,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             rpc_url,
             output,
         } => {
-            println!("🌐 Fetching transaction trace: {}", tx_hash);
+            println!("Fetching transaction trace: {}", tx_hash);
             println!("   RPC: {}", rpc_url);
 
             // Fetch trace
             let trace = fetch_real_trace(&tx_hash, &rpc_url).await?;
 
-            println!("✅ Trace fetched!");
+            println!("{}", "Trace fetched!".green().bold());
             println!("   Opcodes: {}", trace.opcodes.len());
             if let Some(block) = trace.block_number {
                 println!("   Block: {}", block);
@@ -209,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let trace_json = serde_json::to_string_pretty(&trace)?;
             std::fs::write(&output, trace_json)?;
 
-            println!("💾 Trace saved to: {}", output.display());
+            println!("Trace saved to: {}", output.display());
         }
     }
 

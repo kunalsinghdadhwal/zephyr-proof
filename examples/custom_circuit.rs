@@ -7,6 +7,7 @@
 //! 3. Use individual chips (AddChip, EvmChip)
 //! 4. Verify constraints with MockProver
 
+use colored::Colorize;
 use halo2_proofs::{
     arithmetic::Field,
     circuit::{Layouter, SimpleFloorPlanner, Value},
@@ -20,30 +21,33 @@ use zephyr_proof::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔬 Custom Circuit Example");
+    println!("{}", "Custom Circuit Example".cyan().bold());
     println!("=========================\n");
 
     // Example 1: Simple AddChip usage
-    println!("📝 Example 1: AddChip Direct Usage");
+    println!("Example 1: AddChip Direct Usage");
     println!("-----------------------------------");
     example_1_add_chip()?;
 
     // Example 2: EvmChip with multiple operations
-    println!("\n📝 Example 2: EvmChip Multiple Operations");
+    println!("\nExample 2: EvmChip Multiple Operations");
     println!("------------------------------------------");
     example_2_evm_chip()?;
 
     // Example 3: Custom EVM circuit
-    println!("\n📝 Example 3: Custom EVM Circuit");
+    println!("\nExample 3: Custom EVM Circuit");
     println!("---------------------------------");
     example_3_custom_circuit()?;
 
     // Example 4: Complex execution flow
-    println!("\n📝 Example 4: Complex Execution Flow");
+    println!("\nExample 4: Complex Execution Flow");
     println!("-------------------------------------");
     example_4_complex_flow()?;
 
-    println!("\n🎉 All custom circuit examples completed!");
+    println!(
+        "\n{}",
+        "All custom circuit examples completed!".green().bold()
+    );
 
     Ok(())
 }
@@ -109,7 +113,7 @@ fn example_1_add_chip() -> Result<(), Box<dyn std::error::Error>> {
         .verify()
         .map_err(|e| format!("Verification failed: {:?}", e))?;
 
-    println!("\n  ✅ AddChip constraints satisfied!");
+    println!("\n  {}", "AddChip constraints satisfied!".green());
 
     Ok(())
 }
@@ -174,7 +178,7 @@ fn example_2_evm_chip() -> Result<(), Box<dyn std::error::Error>> {
         .verify()
         .map_err(|e| format!("Verification failed: {:?}", e))?;
 
-    println!("\n  ✅ EvmChip constraints satisfied!");
+    println!("\n  {}", "EvmChip constraints satisfied!".green());
 
     Ok(())
 }
@@ -223,7 +227,7 @@ fn example_3_custom_circuit() -> Result<(), Box<dyn std::error::Error>> {
     println!("    MUL        -> stack: [300]");
     println!("    Final result: 300");
 
-    // Create trace commitment (mock hash)
+    // Create trace commitment
     let trace_commitment = Fp::from(12345);
 
     // Build circuit
@@ -242,7 +246,7 @@ fn example_3_custom_circuit() -> Result<(), Box<dyn std::error::Error>> {
         .verify()
         .map_err(|e| format!("Verification failed: {:?}", e))?;
 
-    println!("\n  ✅ Custom circuit constraints satisfied!");
+    println!("\n  {}", "Custom circuit constraints satisfied!".green());
 
     Ok(())
 }
@@ -359,8 +363,8 @@ fn example_4_complex_flow() -> Result<(), Box<dyn std::error::Error>> {
         .verify()
         .map_err(|e| format!("Verification failed: {:?}", e))?;
 
-    println!("\n  ✅ Complex flow constraints satisfied!");
-    println!("  ✅ Gas tracking validated!");
+    println!("\n  {}", "Complex flow constraints satisfied!".green());
+    println!("  {}", "Gas tracking validated!".green());
 
     Ok(())
 }

@@ -1,13 +1,14 @@
 //! Simple ADD operation proof example
 //!
 //! Demonstrates proving a basic ADD operation using the zkEVM prover.
-//! This example creates a mock trace with PUSH1, PUSH1, ADD opcodes and generates a proof.
+//! This example creates a trace with PUSH1, PUSH1, ADD opcodes and generates a proof.
 
+use colored::Colorize;
 use zephyr_proof::{generate_proof, verify_proof, ProverConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔬 Simple ADD Operation Proof Example");
+    println!("{}", "Simple ADD Operation Proof Example".cyan().bold());
     println!("=====================================\n");
 
     // Create a simple ADD trace: PUSH1 5, PUSH1 3, ADD
@@ -28,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "bytecode": [96, 5, 96, 3, 1]
     }"#;
 
-    println!("📋 Trace:");
+    println!("Trace:");
     println!("  PUSH1 5    (opcode: 0x60)");
     println!("  PUSH1 3    (opcode: 0x60)");
     println!("  ADD        (opcode: 0x01)");
@@ -42,21 +43,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rpc_url: None,
     };
 
-    println!("⚙️  Prover Configuration:");
+    println!("{}", "Prover Configuration:".cyan());
     println!("  Circuit size: 2^{} = {} rows", config.k, 1 << config.k);
     println!("  Parallel: {}", config.parallel);
     println!("  Threads: {}\n", config.num_threads.unwrap_or(0));
 
     // Generate proof
-    println!("🔨 Generating proof...");
+    println!("{}", "Generating proof...".cyan());
     let start = std::time::Instant::now();
     let proof = generate_proof(trace_json, &config).await?;
     let duration = start.elapsed();
 
-    println!("✅ Proof generated in {:?}\n", duration);
+    println!(
+        "{}",
+        format!("Proof generated in {:?}", duration).green().bold()
+    );
+    println!();
 
     // Display proof metadata
-    println!("📊 Proof Metadata:");
+    println!("{}", "Proof Metadata:".cyan());
     println!("  Opcodes: {}", proof.metadata.opcode_count);
     println!("  Gas used: {}", proof.metadata.gas_used);
     println!("  Proof size: {} bytes", proof.proof.len());
@@ -68,24 +73,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // Verify proof
-    println!("🔍 Verifying proof...");
+    println!("{}", "Verifying proof...".cyan());
     let start = std::time::Instant::now();
     let valid = verify_proof(&proof, &config).await?;
     let duration = start.elapsed();
 
     if valid {
-        println!("✅ Proof is VALID! (verified in {:?})", duration);
+        println!(
+            "{}",
+            format!("Proof is VALID! (verified in {:?})", duration)
+                .green()
+                .bold()
+        );
     } else {
-        println!("❌ Proof is INVALID!");
+        println!("{}", "Proof is INVALID!".red().bold());
         std::process::exit(1);
     }
 
     // Save proof to file
     let proof_json = serde_json::to_string_pretty(&proof)?;
     std::fs::write("simple_add_proof.json", proof_json)?;
-    println!("\n💾 Proof saved to: simple_add_proof.json");
+    println!("\nProof saved to: simple_add_proof.json");
 
-    println!("\n🎉 Example completed successfully!");
+    println!("\n{}", "Example completed successfully!".green().bold());
 
     Ok(())
 }

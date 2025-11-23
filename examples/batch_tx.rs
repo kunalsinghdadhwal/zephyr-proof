@@ -1,14 +1,15 @@
 //! Batch Transaction Proof Example
 //!
 //! Demonstrates proving multiple EVM operations in parallel using the zkEVM prover.
-//! This example creates multiple mock traces and generates proofs concurrently.
+//! This example creates multiple traces and generates proofs concurrently.
 
+use colored::Colorize;
 use tokio::task::JoinSet;
 use zephyr_proof::{generate_proof, verify_proof, ProverConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔬 Batch Transaction Proof Example");
+    println!("{}", "Batch Transaction Proof Example".cyan().bold());
     println!("===================================\n");
 
     // Define multiple traces to prove in parallel
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     ];
 
-    println!("📋 Traces to prove: {}\n", traces.len());
+    println!("Traces to prove: {}\n", traces.len());
 
     // Configure prover
     let config = ProverConfig {
@@ -87,13 +88,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rpc_url: None,
     };
 
-    println!("⚙️  Prover Configuration:");
+    println!("{}", "Prover Configuration:".cyan());
     println!("  Circuit size: 2^{} = {} rows", config.k, 1 << config.k);
     println!("  Parallel: {}", config.parallel);
     println!("  Threads: {}\n", config.num_threads.unwrap_or(0));
 
     // Generate proofs in parallel using JoinSet
-    println!("🔨 Generating proofs in parallel...");
+    println!("{}", "Generating proofs in parallel...".cyan());
     let start = std::time::Instant::now();
 
     let mut join_set = JoinSet::new();
@@ -117,29 +118,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match result {
             Ok((name, Ok(proof))) => {
                 println!(
-                    "  ✅ {} - {} opcodes, {} gas",
-                    name, proof.metadata.opcode_count, proof.metadata.gas_used
+                    "  {} - {} opcodes, {} gas",
+                    name.green(),
+                    proof.metadata.opcode_count,
+                    proof.metadata.gas_used
                 );
                 total_opcodes += proof.metadata.opcode_count;
                 total_gas += proof.metadata.gas_used;
                 proofs.push((name, proof));
             }
             Ok((name, Err(e))) => {
-                println!("  ❌ {} - Error: {}", name, e);
+                println!("  {} - Error: {}", name.red(), e);
             }
             Err(e) => {
-                println!("  ❌ Task error: {}", e);
+                println!("  {} {}", "Task error:".red(), e);
             }
         }
     }
 
     let batch_duration = start.elapsed();
-    println!("\n✅ All proofs generated in {:?}", batch_duration);
-    println!("📊 Total opcodes: {}", total_opcodes);
-    println!("📊 Total gas: {}\n", total_gas);
+    println!(
+        "\n{}",
+        format!("All proofs generated in {:?}", batch_duration)
+            .green()
+            .bold()
+    );
+    println!("Total opcodes: {}", total_opcodes);
+    println!("Total gas: {}\n", total_gas);
 
     // Verify all proofs in parallel
-    println!("🔍 Verifying all proofs...");
+    println!("{}", "Verifying all proofs...".cyan());
     let start = std::time::Instant::now();
 
     let mut verify_set = JoinSet::new();
@@ -159,33 +167,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match result {
             Ok((name, Ok(valid))) => {
                 if valid {
-                    println!("  ✅ {} - VALID", name);
+                    println!("  {} - {}", name, "VALID".green());
                 } else {
-                    println!("  ❌ {} - INVALID", name);
+                    println!("  {} - {}", name, "INVALID".red());
                     all_valid = false;
                 }
             }
             Ok((name, Err(e))) => {
-                println!("  ❌ {} - Error: {}", name, e);
+                println!("  {} - Error: {}", name.red(), e);
                 all_valid = false;
             }
             Err(e) => {
-                println!("  ❌ Verification error: {}", e);
+                println!("  {} {}", "Verification error:".red(), e);
                 all_valid = false;
             }
         }
     }
 
     let verify_duration = start.elapsed();
-    println!("\n✅ All proofs verified in {:?}", verify_duration);
+    println!(
+        "\n{}",
+        format!("All proofs verified in {:?}", verify_duration)
+            .green()
+            .bold()
+    );
 
     if !all_valid {
-        println!("❌ Some proofs failed verification!");
+        println!("{}", "Some proofs failed verification!".red().bold());
         std::process::exit(1);
     }
 
     // Calculate statistics
-    println!("\n📈 Performance Statistics:");
+    println!("\n{}", "Performance Statistics:".cyan());
     println!(
         "  Average proof time: {:?}",
         batch_duration / proofs.len() as u32
@@ -200,7 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Save all proofs to files
-    println!("\n💾 Saving proofs...");
+    println!("\nSaving proofs...");
     for (name, proof) in &proofs {
         let filename = format!(
             "batch_proof_{}.json",
@@ -214,8 +227,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Saved: {}", filename);
     }
 
-    println!("\n🎉 Batch example completed successfully!");
-    println!("   {} proofs generated and verified", proofs.len());
+    println!(
+        "\n{}",
+        format!("{} proofs generated and verified", proofs.len())
+            .green()
+            .bold()
+    );
 
     Ok(())
 }

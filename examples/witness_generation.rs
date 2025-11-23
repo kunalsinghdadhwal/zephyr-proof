@@ -7,6 +7,7 @@
 //! 3. Inspect witness structure
 //! 4. Use witnesses in circuits
 
+use colored::Colorize;
 use halo2_proofs::{dev::MockProver, pasta::Fp};
 use zephyr_proof::{
     circuits::main_circuit::{EvmCircuit, ExecutionStep},
@@ -14,30 +15,33 @@ use zephyr_proof::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔬 Witness Generation Example");
+    println!("{}", "Witness Generation Example".cyan().bold());
     println!("==============================\n");
 
     // Example 1: Simple ADD operation
-    println!("📝 Example 1: Simple ADD Operation");
+    println!("Example 1: Simple ADD Operation");
     println!("-----------------------------------");
     example_1_simple_add()?;
 
     // Example 2: Multiple operations
-    println!("\n📝 Example 2: Multiple Operations");
+    println!("\nExample 2: Multiple Operations");
     println!("----------------------------------");
     example_2_multiple_ops()?;
 
     // Example 3: Custom trace with storage
-    println!("\n📝 Example 3: Custom Trace with Storage");
+    println!("\nExample 3: Custom Trace with Storage");
     println!("----------------------------------------");
     example_3_custom_trace()?;
 
     // Example 4: Witness to circuit
-    println!("\n📝 Example 4: Witness to Circuit");
+    println!("\nExample 4: Witness to Circuit");
     println!("---------------------------------");
     example_4_witness_to_circuit()?;
 
-    println!("\n🎉 All examples completed successfully!");
+    println!(
+        "\n{}",
+        "All examples completed successfully!".green().bold()
+    );
 
     Ok(())
 }
@@ -80,7 +84,7 @@ fn example_1_simple_add() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(witness.gas_cells.len(), 3);
     assert_eq!(witness.public_inputs.len(), 4); // SHA256 hash split into 4 u64s
 
-    println!("\n  ✅ Witness validated successfully!");
+    println!("\n  {}", "Witness validated successfully!".green());
 
     Ok(())
 }
@@ -138,7 +142,7 @@ fn example_2_multiple_ops() -> Result<(), Box<dyn std::error::Error>> {
         println!("    [{}] 0x{:02x} ({})", i, opcode, opcode_name);
     }
 
-    println!("\n  ✅ Multi-operation witness validated!");
+    println!("\n  {}", "Multi-operation witness validated!".green());
 
     Ok(())
 }
@@ -197,7 +201,7 @@ fn example_3_custom_trace() -> Result<(), Box<dyn std::error::Error>> {
         witness.gas_cells[0] - witness.gas_cells[witness.gas_cells.len() - 1]
     );
 
-    println!("\n  ✅ Storage operation witness validated!");
+    println!("\n  {}", "Storage operation witness validated!".green());
 
     Ok(())
 }
@@ -205,9 +209,19 @@ fn example_3_custom_trace() -> Result<(), Box<dyn std::error::Error>> {
 /// Example 4: Convert witness to circuit and verify
 fn example_4_witness_to_circuit() -> Result<(), Box<dyn std::error::Error>> {
     // Create a simple trace
-    let trace = EvmTrace::mock_add();
+    let trace = EvmTrace {
+        opcodes: vec![0x60, 0x60, 0x01],
+        stack_states: vec![vec![1, 0, 0], vec![2, 1, 0], vec![3, 0, 0]],
+        pcs: vec![0, 2, 4],
+        gas_values: vec![1000, 997, 994],
+        memory_ops: None,
+        storage_ops: None,
+        tx_hash: Some("0xtest_add".to_string()),
+        block_number: Some(1),
+        bytecode: Some(vec![0x60, 0x01, 0x60, 0x02, 0x01]),
+    };
 
-    println!("  Using mock ADD trace:");
+    println!("  Using ADD trace:");
     println!("    Opcodes: {}", trace.opcodes.len());
     println!("    Stack states: {}", trace.stack_states.len());
 
@@ -237,7 +251,7 @@ fn example_4_witness_to_circuit() -> Result<(), Box<dyn std::error::Error>> {
         .verify()
         .map_err(|e| format!("Verification error: {:?}", e))?;
 
-    println!("  ✅ Circuit constraints satisfied!");
+    println!("  {}", "Circuit constraints satisfied!".green());
 
     // Display execution steps
     println!("\n  Execution steps:");
@@ -248,7 +262,10 @@ fn example_4_witness_to_circuit() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("\n  ✅ Witness successfully converted to circuit!");
+    println!(
+        "\n  {}",
+        "Witness successfully converted to circuit!".green()
+    );
 
     Ok(())
 }
