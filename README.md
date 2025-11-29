@@ -8,7 +8,7 @@ Zephyr-Proof transforms Ethereum transactions into verifiable Halo2 proofs witho
 
 ### Core Capabilities
 
-- Fetch real transaction traces via Alloy RPC using `debug_traceTransaction`
+- Fetch real transaction traces via Alloy RPC using `debug_traceTransaction` (with fallback for public RPCs)
 - Modular chip architecture proving selective opcodes with gas metering and stack validation
 - Parallel proving with Rayon and recursive aggregation for traces exceeding 1M steps
 - Base64 proof output with metadata for on-chain settlement
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Transaction Hash
        |
        v
-[Alloy RPC] debug_traceTransaction
+[Alloy RPC] debug_traceTransaction (with fallback for public RPCs)
        |
        v
 EvmTrace { opcodes, stack_states, gas_values, storage_ops }
@@ -146,14 +146,29 @@ EvmTrace { opcodes, stack_states, gas_values, storage_ops }
 [trace_to_witness] CircuitWitness with SHA256 commitment
        |
        v
-[EvmCircuit] Configure chips, assign witnesses
+[EvmCircuit] Configure chips, assign witnesses (num_steps preserved)
        |
        v
 [generate_proof_parallel] Halo2 create_proof with Blake2b transcript
        |
        v
-ProofOutput { proof: base64, public_inputs, metadata, vk_hash }
+ProofOutput { proof, public_inputs, metadata, num_steps, k, vk_hash }
 ```
+
+## Proof Output Structure
+
+```rust
+pub struct ProofOutput {
+    pub proof: String,           // Base64-encoded Halo2 proof
+    pub public_inputs: Vec<String>, // Trace commitment
+    pub metadata: TraceInfo,     // Opcode count, gas used, tx hash
+    pub num_steps: usize,        // Execution steps (for VK reconstruction)
+    pub k: u32,                  // Circuit size parameter
+    pub vk_hash: String,         // Verification key hash
+}
+```
+
+The `num_steps` field is critical for verification. The verifier reconstructs the circuit structure using this value to generate a matching verification key.
 
 ## Supported Opcodes
 
@@ -203,6 +218,8 @@ Uses Halo2 v0.3.1 with Pasta curves (pallas/vesta). Proofs are generated using:
 
 ### Verification
 
+- Reconstructs circuit structure using `num_steps` from proof
+- Generates matching VK with `keygen_vk` 
 - `verify_proof` with SingleVerifier strategy
 - Blake2bRead transcript for Fiat-Shamir
 - Returns boolean validity
