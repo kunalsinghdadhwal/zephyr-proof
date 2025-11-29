@@ -1,96 +1,91 @@
-# Project Overview
+# zephyr-proof  
 
-This project is a Rust-based CLI tool for generating and verifying zero-knowledge proofs of Ethereum Virtual Machine (EVM) execution traces. It uses the Halo2 proof system integrated with REVM primitives to create efficient zkEVM proofs, supports Ethereum contract interactions via Alloy, and employs parallel processing with Rayon for performance optimization. The tool processes EVM traces, compiles Halo2 circuits with gadgets and curves, and outputs verifiable proofs for blockchain applications.
+## Project Description
+**zephyr-proof** is a production-grade, modular Rust CLI toolkit for generating and verifying zero-knowledge proofs of real Ethereum Virtual Machine (EVM) execution traces. Built for zk-rollups, privacy-preserving bridges, and on-chain verification of off-chain computations, it transforms Ethereum transactions into succinct Halo2 proofs without compromising accuracy or performance.
 
-# Copilot Instructions
+**Core Purpose**:  
+- Fetch real tx traces via Alloy RPC (no mocks—always simulate with REVM for 100% EVM fidelity).  
+- Modular chips/circuits prove selective opcodes (ADD, MLOAD, SLOAD, etc.) with gas metering, stack/memory checks, and storage diffs.  
+- Parallel proving (Rayon) + recursive aggregation for 1M+ step traces.  
+- Outputs: Base64 proofs + metadata for on-chain settlement.  
+- Targets: zkEVM devs, rollup builders, auditors—WASM-ready lib for integration.
 
-This project uses several Rust crates. Below are links to their documentation on [docs.rs](https://docs.rs), which Copilot can reference for accurate completions and context.
+**Why It Matters**: Enables fast, verifiable off-chain EVM execution, reducing L1 costs while maintaining trustless security. Start with `cargo run -- simulate <tx-hash> --rpc-url <url>` for end-to-end proofing.
 
-## Core Dependencies
+**Non-negotiable rules. Deviation = critical bug rejection. Focus: Development first (real impls, no mocks). Testing/benching deferred.**
 
-### alloy-contract
+### 1. Project Identity
+- Production-grade modular Halo2 zkEVM prover for real Ethereum tx traces.
+- Ethereum stack = Alloy only (ethers banned).
+- EVM execution = REVM only (`revm` + `revm-primitives`).
+- Proof system = Halo2 v0.3.1 (halo2_proofs, halo2_gadgets, halo2curves 0.9.0; Pasta curves only).
+- Parallelism = Rayon only.
+- Async = Tokio only (`features = ["full"]`).
+- Crate type = `rlib` + `cdylib` (WASM-compatible).
+- Binaries: `zkevm-prover` (src/main.rs), `verifier-cli` (bin/cli.rs), `benchmark` (bin/benchmark.rs).
 
-- Docs: [https://docs.rs/alloy-contract/1.0.41/alloy_contract/](https://docs.rs/alloy-contract/1.0.41/alloy_contract/)
-- Purpose: Interact with on-chain contracts, including call builders and contract interactions.
+### 2. Control Flow (Exact Sequence — No Variations)
+1. **CLI Entry** (clap + tokio::main in src/main.rs/bin/cli.rs): Parse args (tx hash, RPC URL, output file).
+2. **Trace Fetch/Exec** (utils/evm_parser.rs only): Async Alloy HttpProvider fetches tx/block → REVM EVM::transact_commit() → Extract real EVMData (opcodes, stack, memory, storage diffs).
+3. **Witness Prep** (utils/evm_parser.rs): parse_evm_data(&EVMData) → Flatten to real CircuitWitness (vectors for cells; range-check values).
+4. **Circuit Build** (circuits/main_circuit.rs): EvmCircuit configures chips (evm_chip dispatches real opcodes; add_chip/arithmetic for computations; storage for diffs) → Assign real witnesses to advice columns.
+5. **Proof Gen** (prover/parallel_prover.rs): Chunk witness by rows (e.g., 2^14/step) → Rayon par_iter on real create_proof (Plonk + Blake2b transcript; no MockProver) → Aggregate sub-proofs recursively.
+6. **Verify** (prover/verifier.rs): Load VerifyingKey → verify_proof with transcript → Output base64 proof + metadata (tx hash, gas used).
+7. **Output** (CLI): Serialize proof (base64 + serde_json) to file; log success/fail.
 
-### alloy-primitives
+**No mocks: All traces real (from REVM); all proofs full Plonk (no MockProver); validate inputs (tx existence, trace integrity).**
 
-- Docs: [https://docs.rs/alloy-primitives/1.4.1/alloy_primitives/](https://docs.rs/alloy-primitives/1.4.1/alloy_primitives/)
-- Purpose: Primitive types shared across Alloy ecosystem, including unsigned integers and Ethereum-specific types.
+### 3. Development Patterns (Relaxed for Speed)
+- `.unwrap()`, `.expect()` → Allowed in dev code (remove for prod).
+- `panic!()` → Allowed only in stubs (with TODO to replace).
+- `unimplemented!()`, `todo!()` → Allowed with deadline TODO (e.g., "// TODO: Real impl by [date]").
+- `println!`, `debug!` → Allowed in dev; migrate to tracing later.
+- Mock data/stubs → Banned; use real REVM sim from day 1.
 
-### alloy-provider
+### 4. Error Handling
+- Lib: Prefer `Result<_, crate::Error>` (`thiserror::Error` derive); unwrap/expect OK for dev.
+- Bin: `anyhow::Result<_>` + `?` where possible; unwrap OK for quick iteration.
 
-- Docs: [https://docs.rs/alloy-provider/1.0.41/alloy_provider/](https://docs.rs/alloy-provider/1.0.41/alloy_provider/)
-- Purpose: Ethereum JSON-RPC provider trait and implementations for network interactions.
+### 5. Dependency Rules
+- Alloy crates only (no ethers/web3).
+- Halo2 = v0.3.1 only (no 0.2/pse).
+- Tokio = full features only.
 
-### alloy-sol-macro
+**API References (Use These Exact Links — No Assumptions):**
+- alloy-* (all): https://alloy.rs/llms-full.txt
+- base64: https://context7.com/websites/rs_base64_base64/llms.txt
+- clap: https://context7.com/clap-rs/clap/llms.txt
+- halo2_gadgets: https://docs.rs/halo2_gadgets/0.3.1/halo2_gadgets/
+- halo2_proofs: https://docs.rs/halo2_proofs/0.3.1/halo2_proofs/
+- halo2curves: https://docs.rs/halo2curves/0.9.0/halo2curves/
+- rayon: https://context7.com/rayon-rs/rayon/llms.txt
+- revm: https://context7.com/bluealloy/revm/llms.txt
+- revm-primitives: https://docs.rs/revm-primitives/21.0.1/revm_primitives/
+- serde: https://context7.com/websites/rs_serde/llms.txt
+- serde_json: https://context7.com/serde-rs/json/llms.txt
+- thiserror: https://context7.com/websites/rs_thiserror/llms.txt
+- tokio: https://context7.com/websites/rs_tokio_tokio/llms.txt
 
-- Docs: [https://docs.rs/alloy-sol-macro/1.4.1/alloy_sol_macro/](https://docs.rs/alloy-sol-macro/1.4.1/alloy_sol_macro/)
-- Purpose: Procedural macro for parsing Solidity syntax to generate Alloy-compatible types.
+### 6. Architecture
+- `src/chips/`: Pure Halo2 chips (e.g., add_chip for real arithmetic; evm_chip dispatches opcodes).
+- `src/circuits/`: Composes chips (main_circuit: real witnesses → layout; arithmetic/storage: gadgets).
+- `src/prover/`: Real proving (parallel_prover: chunk + par_iter; verifier: transcript verify).
+- `src/utils/evm_parser.rs`: Sole REVM/Alloy touchpoint (fetch_and_execute_tx async; trace_to_witness).
+- `src/lib.rs`: Re-exports only.
+- `src/main.rs`: Thin async CLI dispatch.
 
-### base64
+### 7. Chip/Circuit Rules
+- Chips: `impl Chip<F> + Instructions<F>` (F = pasta::Fq).
+- Circuits: Generic over FieldExt; public inputs hashed (Poseidon/Keccak).
+- Constraints: Real EVM (gas/opcode, stack/memory range-checks, storage merkle).
 
-- Docs: [https://docs.rs/base64/0.22.1/base64/](https://docs.rs/base64/0.22.1/base64/)
-- Purpose: Encoding and decoding Base64 strings.
+### 8. Performance/Security
+- Chunk traces (1M+ steps) via recursion.
+- No raw witnesses exposed.
+- Range-check all values (halo2_gadgets::utilities::range).
 
-### clap
+### 9. Documentation
+- Public items: Doc + example.
+- New chips: Diagram in `docs/circuit_diagrams/`.
 
-- Docs: [https://docs.rs/clap/4.5.50/clap/](https://docs.rs/clap/4.5.50/clap/)
-- Features: `"derive"`
-- Purpose: Command-line argument parsing with derive macros.
-
-### halo2_gadgets
-
-- Docs: [https://docs.rs/halo2_gadgets/0.3.1/halo2_gadgets/](https://docs.rs/halo2_gadgets/0.3.1/halo2_gadgets/)
-- Purpose: Common cryptographic gadgets for Halo 2 proving system.
-
-### halo2_proofs
-
-- Docs: [https://docs.rs/halo2_proofs/0.3.1/halo2_proofs/](https://docs.rs/halo2_proofs/0.3.1/halo2_proofs/)
-- Purpose: Core Halo 2 proof system — constructs and verifies zero-knowledge proofs.
-
-### halo2curves
-
-- Docs: [https://docs.rs/halo2curves/0.9.0/halo2curves/](https://docs.rs/halo2curves/0.9.0/halo2curves/)
-- Purpose: Provides elliptic curve implementations for Halo 2 circuits.
-
-### rayon
-
-- Docs: [https://docs.rs/rayon/1.11.0/rayon/](https://docs.rs/rayon/1.11.0/rayon/)
-- Purpose: Parallel iterators and task scheduling for CPU-bound computations.
-
-### revm-primitives
-
-- Docs: [https://docs.rs/revm-primitives/21.0.1/revm_primitives/](https://docs.rs/revm-primitives/21.0.1/revm_primitives/)
-- Features: `"serde"`
-- Purpose: Core data structures and primitives used in the REVM (Rust EVM) project.
-
-### serde
-
-- Docs: [https://docs.rs/serde/1.0.210/serde/](https://docs.rs/serde/1.0.210/serde/)
-- Features: `["derive"]`
-- Purpose: Serialization and deserialization framework.
-
-### serde_json
-
-- Docs: [https://docs.rs/serde_json/1.0.132/serde_json/](https://docs.rs/serde_json/1.0.132/serde_json/)
-- Purpose: JSON serialization and deserialization using Serde.
-
-### thiserror
-
-- Docs: [https://docs.rs/thiserror/1.0.64/thiserror/](https://docs.rs/thiserror/1.0.64/thiserror/)
-- Purpose: Derive macro for implementing the std::error::Error trait.
-
-### tokio
-
-- Docs: [https://docs.rs/tokio/1.47.0/tokio/](https://docs.rs/tokio/1.47.0/tokio/)
-- Features: `["full"]`
-- Purpose: Asynchronous runtime for Rust, enabling async/await patterns.
-
-## Notes for Copilot
-
-- Use these docs for API references and examples.
-- When suggesting code:
-  - Prefer safe Rust idioms and `?` for error propagation.
-  - Follow the feature flags enabled above.
-  - If uncertain about a type or method, look it up from the linked docs.rs pages.
+**Bound by these rules. Generate only compliant, real-use-case dev code (unwrap OK for iteration).**

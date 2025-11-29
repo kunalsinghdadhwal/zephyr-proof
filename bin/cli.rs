@@ -182,4 +182,3 @@ mod tests {
         assert!(!cli.no_parallel);
     }
 }
-

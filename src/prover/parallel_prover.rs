@@ -10,32 +10,69 @@ use crate::{
     ProofOutput, ProverConfig, TraceInfo,
 };
 use base64::{engine::general_purpose, Engine as _};
-use halo2_proofs::{dev::MockProver, pasta::Fp};
+use halo2_proofs::{
+    pasta::{EqAffine, Fp},
+    plonk::{create_proof, keygen_pk, keygen_vk, ProvingKey, VerifyingKey},
+    poly::commitment::Params,
+    transcript::{Blake2bWrite, Challenge255},
+};
 use rayon::prelude::*;
 
-/// Serialize proof for development purposes
-/// In production, this would serialize actual cryptographic proof bytes
-fn serialize_proof_dev<F: halo2_proofs::arithmetic::Field>(
-    _circuit: &EvmCircuit<F>,
-    public_inputs: &[F],
+/// Proof generation artifacts (for caching)
+pub struct ProofArtifacts {
+    pub params: Params<EqAffine>,
+    pub vk: VerifyingKey<EqAffine>,
+    pub pk: ProvingKey<EqAffine>,
+}
+
+/// Generate trusted setup parameters for given k
+///
+/// In production, these should be generated once and cached/loaded from disk.
+/// The parameters are deterministic for a given k value.
+pub fn generate_params(k: u32) -> Params<EqAffine> {
+    Params::new(k)
+}
+
+/// Generate proving artifacts (params, VK, PK) for a circuit
+pub fn generate_artifacts(k: u32, circuit: &EvmCircuit<Fp>) -> Result<ProofArtifacts> {
+    let params = generate_params(k);
+
+    let vk = keygen_vk(&params, circuit)
+        .map_err(|e| ProverError::Halo2Error(format!("Failed to generate VK: {:?}", e)))?;
+
+    let pk = keygen_pk(&params, vk.clone(), circuit)
+        .map_err(|e| ProverError::Halo2Error(format!("Failed to generate PK: {:?}", e)))?;
+
+    Ok(ProofArtifacts { params, vk, pk })
+}
+
+/// Serialize a real Halo2 proof to bytes
+fn serialize_proof(
+    params: &Params<EqAffine>,
+    pk: &ProvingKey<EqAffine>,
+    circuit: &EvmCircuit<Fp>,
+    public_inputs: &[Vec<Fp>],
 ) -> Result<Vec<u8>> {
-    use sha2::{Digest, Sha256};
+    let mut transcript = Blake2bWrite::<_, EqAffine, Challenge255<_>>::init(vec![]);
 
-    // Create a deterministic representation for development
-    let mut hasher = Sha256::new();
+    // Convert public inputs to the format expected by create_proof
+    let instances: Vec<&[Fp]> = public_inputs.iter().map(|v| v.as_slice()).collect();
+    let instances_slice: &[&[Fp]] = &instances;
 
-    for input in public_inputs {
-        // Hash the public inputs
-        hasher.update(format!("{:?}", input).as_bytes());
-    }
+    // Use thread-local RNG
+    let mut rng = rand::thread_rng();
 
-    let hash = hasher.finalize();
+    create_proof(
+        params,
+        pk,
+        &[circuit.clone()],
+        &[instances_slice],
+        &mut rng,
+        &mut transcript,
+    )
+    .map_err(|e| ProverError::ProofGenerationError(format!("create_proof failed: {:?}", e)))?;
 
-    // Create a proof-like structure (256 bytes for development)
-    let mut proof = vec![0u8; 256];
-    proof[..32].copy_from_slice(&hash);
-
-    Ok(proof)
+    Ok(transcript.finalize())
 }
 
 /// Generate a proof using parallel processing
@@ -53,8 +90,7 @@ fn serialize_proof_dev<F: halo2_proofs::arithmetic::Field>(
 ///
 /// - For large traces (>10k steps), chunks into sub-circuits
 /// - Uses Rayon to parallelize witness generation
-/// - Real ex: let trace = fetch_trace_from_network("0x...", rpc).await?;
-///           let proof = generate_proof_parallel(&trace, &config).await?;
+/// - Uses real Halo2 proof generation with create_proof
 pub async fn generate_proof_parallel(
     trace: &EvmTrace,
     config: &ProverConfig,
@@ -101,26 +137,13 @@ pub async fn generate_proof_parallel(
     let trace_commitment = Fp::from(witness.public_inputs[0]);
 
     let circuit = EvmCircuit::new(steps, trace_commitment);
-
-    // Use MockProver for development
-    // Production deployment requires real proving system setup:
-    // 1. Generate trusted setup parameters with appropriate security level
-    // 2. Use keygen_vk and keygen_pk to create verification/proving keys
-    // 3. Call create_proof with proper transcript and randomness
-    // 4. Implement proof serialization for on-chain verification
     let k = config.k;
-    let public_inputs = vec![trace_commitment];
+    let public_inputs = vec![vec![trace_commitment]];
 
-    let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()])
-        .map_err(|e| ProverError::Halo2Error(format!("{:?}", e)))?;
+    // Generate real proof using Halo2 proving system
+    let artifacts = generate_artifacts(k, &circuit)?;
 
-    prover
-        .verify()
-        .map_err(|e| ProverError::VerificationError(format!("{:?}", e)))?;
-
-    // Serialize circuit constraints as proof representation
-    // In production, this would be the actual Plonk/IPA proof bytes
-    let proof_bytes = serialize_proof_dev(&circuit, &public_inputs)?;
+    let proof_bytes = serialize_proof(&artifacts.params, &artifacts.pk, &circuit, &public_inputs)?;
     let proof_b64 = general_purpose::STANDARD.encode(&proof_bytes);
 
     // Generate metadata from real trace
@@ -137,7 +160,10 @@ pub async fn generate_proof_parallel(
 
     Ok(ProofOutput {
         proof: proof_b64,
-        public_inputs: public_inputs.iter().map(|f| format!("{:?}", f)).collect(),
+        public_inputs: public_inputs[0]
+            .iter()
+            .map(|f| format!("{:?}", f))
+            .collect(),
         metadata,
         vk_hash,
     })
@@ -332,16 +358,12 @@ pub async fn generate_proof_sequential(
     let circuit = EvmCircuit::new(steps, trace_commitment);
 
     let k = config.k;
-    let public_inputs = vec![trace_commitment];
+    let public_inputs = vec![vec![trace_commitment]];
 
-    let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()])
-        .map_err(|e| ProverError::Halo2Error(format!("{:?}", e)))?;
+    // Generate real proof using Halo2 proving system
+    let artifacts = generate_artifacts(k, &circuit)?;
 
-    prover
-        .verify()
-        .map_err(|e| ProverError::VerificationError(format!("{:?}", e)))?;
-
-    let proof_bytes = serialize_proof_dev(&circuit, &public_inputs)?;
+    let proof_bytes = serialize_proof(&artifacts.params, &artifacts.pk, &circuit, &public_inputs)?;
     let proof_b64 = general_purpose::STANDARD.encode(&proof_bytes);
 
     let metadata = TraceInfo {
@@ -356,7 +378,10 @@ pub async fn generate_proof_sequential(
 
     Ok(ProofOutput {
         proof: proof_b64,
-        public_inputs: public_inputs.iter().map(|f| format!("{:?}", f)).collect(),
+        public_inputs: public_inputs[0]
+            .iter()
+            .map(|f| format!("{:?}", f))
+            .collect(),
         metadata,
         vk_hash,
     })

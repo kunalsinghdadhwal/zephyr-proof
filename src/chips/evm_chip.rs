@@ -272,7 +272,7 @@ impl<F: Field> EvmChip<F> {
             let s = meta.query_selector(s_opcode);
             let gas_cur = meta.query_advice(gas, Rotation::cur());
             let gas_next = meta.query_advice(gas, Rotation::next());
-            let opcode_val = meta.query_advice(opcode, Rotation::cur());
+            let _opcode_val = meta.query_advice(opcode, Rotation::cur());
 
             // Simplified: assume average 3 gas per op
             // Real implementation would lookup actual gas cost from opcode
@@ -428,12 +428,7 @@ impl<F: Field> EvmChip<F> {
                     || Value::known(gas_next_field),
                 )?;
 
-                region.assign_advice(
-                    || "result",
-                    self.config.stack_2,
-                    0,
-                    || Value::known(result),
-                )
+                region.assign_advice(|| "result", self.config.stack_2, 0, || Value::known(result))
             },
         )
     }

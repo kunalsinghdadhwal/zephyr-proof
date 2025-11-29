@@ -1710,6 +1710,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm-disassembler"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ded685d9f07315ff689ba56e7d84e6f1e782db19b531a46c34061a733bba7258"
+dependencies = [
+ "eyre",
+ "hex",
+]
+
+[[package]]
+name = "eyre"
+version = "0.6.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
+dependencies = [
+ "indenter",
+ "once_cell",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2395,6 +2415,12 @@ dependencies = [
  "quote",
  "syn 2.0.108",
 ]
+
+[[package]]
+name = "indenter"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964de6e86d545b246d84badc0fef527924ace5134f30641c203ef52ba83f58d5"
 
 [[package]]
 name = "indexmap"
@@ -5119,6 +5145,7 @@ dependencies = [
  "clap",
  "colored",
  "criterion",
+ "evm-disassembler",
  "halo2_gadgets",
  "halo2_proofs",
  "halo2curves",
@@ -5126,6 +5153,7 @@ dependencies = [
  "num_cpus",
  "proptest",
  "proptest-derive",
+ "rand 0.8.5",
  "rayon",
  "revm",
  "revm-primitives",
