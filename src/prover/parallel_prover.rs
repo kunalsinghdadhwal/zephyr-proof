@@ -136,7 +136,7 @@ pub async fn generate_proof_parallel(
     // Use real trace commitment from witness
     let trace_commitment = Fp::from(witness.public_inputs[0]);
 
-    let circuit = EvmCircuit::new(steps, trace_commitment);
+    let circuit = EvmCircuit::new(steps.clone(), trace_commitment);
     let k = config.k;
     let public_inputs = vec![vec![trace_commitment]];
 
@@ -158,6 +158,9 @@ pub async fn generate_proof_parallel(
     // Generate VK hash (for quick verification key matching)
     let vk_hash = compute_vk_hash(k, &witness.public_inputs);
 
+    // Store number of steps for verification (circuit reconstruction)
+    let num_steps = steps.len();
+
     Ok(ProofOutput {
         proof: proof_b64,
         public_inputs: public_inputs[0]
@@ -165,6 +168,8 @@ pub async fn generate_proof_parallel(
             .map(|f| format!("{:?}", f))
             .collect(),
         metadata,
+        num_steps,
+        k,
         vk_hash,
     })
 }
@@ -355,7 +360,7 @@ pub async fn generate_proof_sequential(
         .collect();
 
     let trace_commitment = Fp::from(witness.public_inputs[0]);
-    let circuit = EvmCircuit::new(steps, trace_commitment);
+    let circuit = EvmCircuit::new(steps.clone(), trace_commitment);
 
     let k = config.k;
     let public_inputs = vec![vec![trace_commitment]];
@@ -376,6 +381,9 @@ pub async fn generate_proof_sequential(
 
     let vk_hash = compute_vk_hash(k, &witness.public_inputs);
 
+    // Store number of steps for verification (circuit reconstruction)
+    let num_steps = steps.len();
+
     Ok(ProofOutput {
         proof: proof_b64,
         public_inputs: public_inputs[0]
@@ -383,6 +391,8 @@ pub async fn generate_proof_sequential(
             .map(|f| format!("{:?}", f))
             .collect(),
         metadata,
+        num_steps,
+        k,
         vk_hash,
     })
 }

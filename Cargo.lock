@@ -5133,6 +5133,7 @@ dependencies = [
 name = "zephyr-proof"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-contract",
  "alloy-primitives",
  "alloy-provider",

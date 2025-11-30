@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::path::PathBuf;
 use zephyr_proof::{
-    generate_proof, new_prover, new_prover_with_params, prove_transaction, verify_proof,
+    generate_proof, new_prover, new_prover_with_params, prove_transaction,
     ProofOutput, ProverConfig,
 };
 
@@ -53,6 +53,10 @@ enum Commands {
     Verify {
         /// Path to the proof JSON file
         proof_file: PathBuf,
+
+        /// Enable verbose output for debugging
+        #[arg(short, long)]
+        verbose: bool,
     },
 
     /// Simulate and prove a real transaction from Ethereum network
@@ -122,17 +126,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Proof saved to: {}", output.display());
         }
 
-        Commands::Verify { proof_file } => {
+        Commands::Verify { proof_file, verbose } => {
             println!("Reading proof from: {}", proof_file.display());
 
             // Read proof file
             let proof_json = std::fs::read_to_string(&proof_file)?;
             let proof: ProofOutput = serde_json::from_str(&proof_json)?;
 
-            println!("{}", "Verifying proof...".cyan());
+            println!(
+                "{}",
+                format!("Verifying proof (k={}, num_steps={})...", proof.k, proof.num_steps).cyan()
+            );
 
-            // Verify proof
-            let valid = verify_proof(&proof, &config).await?;
+            // Verify proof with verbosity option
+            let valid = zephyr_proof::prover::verifier::verify_with_verbosity(&proof, &config, verbose).await?;
 
             if valid {
                 println!("{}", "Proof is VALID!".green().bold());

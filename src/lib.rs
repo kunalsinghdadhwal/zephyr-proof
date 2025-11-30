@@ -79,6 +79,10 @@ pub struct ProofOutput {
     pub public_inputs: Vec<String>,
     /// Trace metadata
     pub metadata: TraceInfo,
+    /// Number of execution steps (needed to reconstruct circuit for verification)
+    pub num_steps: usize,
+    /// Circuit size parameter k (2^k rows)
+    pub k: u32,
     /// Verification key hash (for quick VK matching)
     pub vk_hash: String,
 }

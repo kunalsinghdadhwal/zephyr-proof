@@ -7,4 +7,4 @@ pub mod parallel_prover;
 pub mod verifier;
 
 pub use parallel_prover::{generate_proof_parallel, generate_proof_sequential};
-pub use verifier::verify;
+pub use verifier::{verify, verify_with_verbosity};

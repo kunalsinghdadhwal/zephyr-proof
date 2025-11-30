@@ -57,6 +57,7 @@ cli = []
 bench = []
 
 [dependencies]
+alloy-consensus = "1.0.41"
 alloy-contract = "1.0.41"
 alloy-primitives = "1.4.1"
 alloy-provider = "1.0.41"

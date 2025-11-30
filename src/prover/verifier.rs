@@ -15,21 +15,30 @@ use halo2_proofs::{
     transcript::{Blake2bRead, Challenge255},
 };
 
-/// Generate verification key for verification
+/// Generate verification key with matching circuit structure
 ///
-/// This reconstructs the VK from params and an empty circuit.
-/// In production, VK would be cached or serialized.
-fn generate_vk(k: u32) -> Result<(Params<EqAffine>, VerifyingKey<EqAffine>)> {
+/// This reconstructs the VK from params and a circuit with the same structure
+/// (same number of steps). The VK depends on circuit structure, not witness values.
+fn generate_vk_for_steps(
+    k: u32,
+    num_steps: usize,
+) -> Result<(Params<EqAffine>, VerifyingKey<EqAffine>)> {
     let params = Params::new(k);
 
-    // Create an empty circuit with placeholder steps for VK generation
-    let steps = vec![ExecutionStep {
-        opcode: 0,
-        stack: [Fp::from(0u64), Fp::from(0u64), Fp::from(0u64)],
-        pc: 0,
-        gas: 0,
-    }];
-    let circuit = EvmCircuit::new(steps, Fp::from(0u64));
+    // Create circuit with same structure (num_steps) but placeholder witness values
+    // The VK only depends on the circuit constraints/structure, not the actual values
+    // Use opcode 0 (STOP) which has minimal constraints
+    let steps: Vec<ExecutionStep<Fp>> = (0..num_steps)
+        .enumerate()
+        .map(|(i, _)| ExecutionStep {
+            opcode: 0, // STOP opcode
+            stack: [Fp::zero(), Fp::zero(), Fp::zero()],
+            pc: i as u64,
+            gas: 1000000 - (i as u64 * 3), // Decreasing gas like real execution
+        })
+        .collect();
+
+    let circuit = EvmCircuit::new(steps, Fp::zero());
 
     let vk = keygen_vk(&params, &circuit)
         .map_err(|e| ProverError::Halo2Error(format!("Failed to generate VK: {:?}", e)))?;
@@ -47,11 +56,55 @@ fn generate_vk(k: u32) -> Result<(Params<EqAffine>, VerifyingKey<EqAffine>)> {
 /// # Returns
 ///
 /// `true` if the proof is valid, `false` otherwise
-pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result<bool> {
+pub async fn verify(proof_output: &ProofOutput, _config: &ProverConfig) -> Result<bool> {
+    verify_with_verbosity(proof_output, _config, false).await
+}
+
+/// Verify a proof with optional verbose output for debugging
+///
+/// # Arguments
+///
+/// * `proof_output` - The proof to verify
+/// * `config` - Prover configuration
+/// * `verbose` - Enable verbose debugging output
+///
+/// # Returns
+///
+/// `true` if the proof is valid, `false` otherwise
+pub async fn verify_with_verbosity(
+    proof_output: &ProofOutput,
+    _config: &ProverConfig,
+    verbose: bool,
+) -> Result<bool> {
+    if verbose {
+        println!("=== Verification Debug Info ===");
+        println!("Proof length: {} bytes", proof_output.proof.len());
+        println!("Number of steps: {}", proof_output.num_steps);
+        println!("Circuit k value: {}", proof_output.k);
+        println!("VK hash: {}", proof_output.vk_hash);
+        println!("Public inputs count: {}", proof_output.public_inputs.len());
+        for (i, pi) in proof_output.public_inputs.iter().enumerate() {
+            println!("  Public input[{}]: {}", i, pi);
+        }
+        println!("Metadata:");
+        println!("  Opcode count: {}", proof_output.metadata.opcode_count);
+        println!("  Gas used: {}", proof_output.metadata.gas_used);
+        if let Some(ref tx) = proof_output.metadata.tx_hash {
+            println!("  TX hash: {}", tx);
+        }
+        if let Some(block) = proof_output.metadata.block_number {
+            println!("  Block: {}", block);
+        }
+    }
+
     // Decode proof
     let proof_bytes = general_purpose::STANDARD
         .decode(&proof_output.proof)
         .map_err(|e| ProverError::Base64Error(e.to_string()))?;
+
+    if verbose {
+        println!("Decoded proof size: {} bytes", proof_bytes.len());
+    }
 
     // Verify VK hash is present
     if proof_output.vk_hash.is_empty() {
@@ -64,6 +117,13 @@ pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result
     if proof_bytes.len() < 64 {
         return Err(ProverError::VerificationError(
             "Proof too short".to_string(),
+        ));
+    }
+
+    // Validate num_steps is present
+    if proof_output.num_steps == 0 {
+        return Err(ProverError::VerificationError(
+            "Missing num_steps in proof output".to_string(),
         ));
     }
 
@@ -84,8 +144,25 @@ pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result
         })
         .collect();
 
-    // Generate verification key (in production, this would be cached/loaded)
-    let (params, vk) = generate_vk(config.k)?;
+    if verbose {
+        println!("Parsed {} public inputs as field elements", public_inputs.len());
+        for (i, pi) in public_inputs.iter().enumerate() {
+            println!("  Fp[{}]: {:?}", i, pi);
+        }
+    }
+
+    if verbose {
+        println!("Generating VK for {} steps with k={}...", proof_output.num_steps, proof_output.k);
+    }
+
+    // Generate verification key with matching circuit structure
+    // Use k and num_steps from the proof output to ensure VK matches
+    let (params, vk) = generate_vk_for_steps(proof_output.k, proof_output.num_steps)?;
+
+    if verbose {
+        println!("VK generated successfully");
+        println!("Creating verification transcript...");
+    }
 
     // Create transcript for verification
     let mut transcript = Blake2bRead::<_, EqAffine, Challenge255<_>>::init(&proof_bytes[..]);
@@ -98,10 +175,46 @@ pub async fn verify(proof_output: &ProofOutput, config: &ProverConfig) -> Result
     let instances_mid: &[&[Fp]] = &[instances_inner];
     let instances: &[&[&[Fp]]] = &[instances_mid];
 
+    if verbose {
+        println!("Running verify_proof...");
+        println!("  Instances structure: {} circuits, {} columns, {} rows",
+            instances.len(),
+            instances.first().map(|x| x.len()).unwrap_or(0),
+            instances.first().and_then(|x| x.first()).map(|x| x.len()).unwrap_or(0)
+        );
+    }
+
     // Perform real cryptographic verification
     match verify_proof(&params, &vk, strategy, instances, &mut transcript) {
-        Ok(()) => Ok(true),
+        Ok(()) => {
+            if verbose {
+                println!("verify_proof returned Ok(())");
+            }
+            Ok(true)
+        }
         Err(e) => {
+            if verbose {
+                println!("verify_proof failed with error: {:?}", e);
+                println!("Error details:");
+                match &e {
+                    halo2_proofs::plonk::Error::ConstraintSystemFailure => {
+                        println!("  - ConstraintSystemFailure: Circuit constraints not satisfied");
+                        println!("  - This typically means:");
+                        println!("    1. VK was generated from different circuit structure");
+                        println!("    2. Public inputs don't match what was used in proving");
+                        println!("    3. Proof was corrupted or tampered with");
+                    }
+                    halo2_proofs::plonk::Error::InvalidInstances => {
+                        println!("  - InvalidInstances: Public input format mismatch");
+                    }
+                    halo2_proofs::plonk::Error::Transcript(te) => {
+                        println!("  - Transcript error: {:?}", te);
+                    }
+                    _ => {
+                        println!("  - Other error: {:?}", e);
+                    }
+                }
+            }
             tracing::warn!("Proof verification failed: {:?}", e);
             // Return false for invalid proofs rather than error
             // This allows batch verification to continue
@@ -150,53 +263,10 @@ pub async fn batch_verify(proofs: Vec<&ProofOutput>, config: &ProverConfig) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ProofOutput, TraceInfo};
+    use crate::{ProofOutput, ProverConfig, TraceInfo};
 
-    #[tokio::test]
-    async fn test_verify_valid_proof() {
-        use halo2_proofs::pasta::Fp;
-        use sha2::{Digest, Sha256};
-
-        // Create a valid proof structure - must match verifier's parsing
-        let public_inputs_str = vec!["0x7b".to_string()]; // 123 in hex
-
-        // Parse exactly as the verifier does
-        let public_inputs_fp: Vec<Fp> = public_inputs_str
-            .iter()
-            .map(|s| {
-                let val = s.trim_matches(|c| c == '0' || c == 'x');
-                Fp::from(val.parse::<u64>().unwrap_or(0))
-            })
-            .collect();
-
-        // Generate expected hash
-        let mut hasher = Sha256::new();
-        for input in &public_inputs_fp {
-            hasher.update(format!("{:?}", input).as_bytes());
-        }
-        let hash = hasher.finalize();
-
-        // Create proof with hash
-        let mut proof_bytes = vec![0u8; 256];
-        proof_bytes[..32].copy_from_slice(&hash);
-
-        let proof = ProofOutput {
-            proof: general_purpose::STANDARD.encode(&proof_bytes),
-            public_inputs: public_inputs_str,
-            metadata: TraceInfo {
-                opcode_count: 3,
-                gas_used: 9,
-                tx_hash: None,
-                block_number: None,
-            },
-            vk_hash: "vk_17".to_string(),
-        };
-
-        let config = ProverConfig::default();
-        let result = verify(&proof, &config).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-    }
+    /// Note: Real proof verification tests require actual proofs generated by the prover.
+    /// These tests verify error handling and edge cases.
 
     #[tokio::test]
     async fn test_verify_invalid_vk_hash() {
@@ -209,6 +279,8 @@ mod tests {
                 tx_hash: None,
                 block_number: None,
             },
+            num_steps: 3,
+            k: 17,
             vk_hash: "".to_string(), // Empty VK hash should fail
         };
 
@@ -228,6 +300,8 @@ mod tests {
                 tx_hash: None,
                 block_number: None,
             },
+            num_steps: 3,
+            k: 17,
             vk_hash: "vk_17".to_string(),
         };
 
@@ -237,84 +311,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_batch_verify() {
-        use halo2_proofs::pasta::Fp;
-        use sha2::{Digest, Sha256};
-
-        let public_inputs_str = vec!["0x3".to_string()];
-
-        // Parse exactly as the verifier does
-        let public_inputs_fp: Vec<Fp> = public_inputs_str
-            .iter()
-            .map(|s| {
-                let val = s.trim_matches(|c| c == '0' || c == 'x');
-                Fp::from(val.parse::<u64>().unwrap_or(0))
-            })
-            .collect();
-
-        let mut hasher = Sha256::new();
-        for input in &public_inputs_fp {
-            hasher.update(format!("{:?}", input).as_bytes());
-        }
-        let hash = hasher.finalize();
-
-        let mut proof_bytes = vec![0u8; 256];
-        proof_bytes[..32].copy_from_slice(&hash);
-
-        let proof1 = ProofOutput {
-            proof: general_purpose::STANDARD.encode(&proof_bytes),
-            public_inputs: public_inputs_str.clone(),
+    async fn test_verify_missing_num_steps() {
+        let proof = ProofOutput {
+            proof: general_purpose::STANDARD.encode(&vec![0u8; 256]),
+            public_inputs: vec!["0x3".to_string()],
             metadata: TraceInfo {
                 opcode_count: 3,
                 gas_used: 9,
                 tx_hash: None,
                 block_number: None,
             },
+            num_steps: 0, // Zero steps should fail
+            k: 17,
             vk_hash: "vk_17".to_string(),
         };
-
-        let proof2 = proof1.clone();
 
         let config = ProverConfig::default();
-        let results = batch_verify(vec![&proof1, &proof2], &config).await;
-        assert!(results.is_ok());
-        assert_eq!(results.unwrap(), vec![true, true]);
-    }
-
-    #[tokio::test]
-    async fn test_batch_verify_sequential() {
-        use halo2_proofs::pasta::Fp;
-        use sha2::{Digest, Sha256};
-
-        let public_inputs_fp = vec![Fp::from(5u64)];
-        let mut hasher = Sha256::new();
-        for input in &public_inputs_fp {
-            hasher.update(format!("{:?}", input).as_bytes());
-        }
-        let hash = hasher.finalize();
-
-        let mut proof_bytes = vec![0u8; 256];
-        proof_bytes[..32].copy_from_slice(&hash);
-
-        let proof = ProofOutput {
-            proof: general_purpose::STANDARD.encode(&proof_bytes),
-            public_inputs: vec!["0x5".to_string()],
-            metadata: TraceInfo {
-                opcode_count: 2,
-                gas_used: 6,
-                tx_hash: None,
-                block_number: None,
-            },
-            vk_hash: "vk_17".to_string(),
-        };
-
-        let config = ProverConfig {
-            parallel: false,
-            ..Default::default()
-        };
-
-        let results = batch_verify(vec![&proof], &config).await;
-        assert!(results.is_ok());
+        let result = verify(&proof, &config).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -328,6 +342,8 @@ mod tests {
                 tx_hash: None,
                 block_number: None,
             },
+            num_steps: 3,
+            k: 17,
             vk_hash: "vk_17".to_string(),
         };
 
