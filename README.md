@@ -2,6 +2,7 @@
 
 Production-grade modular Halo2 zkEVM prover for real Ethereum transaction traces. Generates succinct zero-knowledge proofs of EVM execution using REVM simulation and Alloy RPC.
 
+![Untitled diagram-2025-11-30-194002](https://github.com/user-attachments/assets/6d4e7dbd-e74f-4803-b1ce-296883e7aa2c)
 ## Overview
 
 Zephyr-Proof transforms Ethereum transactions into verifiable Halo2 proofs without compromising accuracy or performance. Built for zk-rollups, privacy-preserving bridges, and on-chain verification of off-chain computations.
