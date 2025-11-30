@@ -131,31 +131,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-
-### Execution Flow
-
-```
-Transaction Hash
-       |
-       v
-[Alloy RPC] debug_traceTransaction (with fallback for public RPCs)
-       |
-       v
-EvmTrace { opcodes, stack_states, gas_values, storage_ops }
-       |
-       v
-[trace_to_witness] CircuitWitness with SHA256 commitment
-       |
-       v
-[EvmCircuit] Configure chips, assign witnesses (num_steps preserved)
-       |
-       v
-[generate_proof_parallel] Halo2 create_proof with Blake2b transcript
-       |
-       v
-ProofOutput { proof, public_inputs, metadata, num_steps, k, vk_hash }
-```
-
 ## Proof Output Structure
 
 ```rust
